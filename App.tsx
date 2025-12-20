@@ -1,4 +1,3 @@
-npm install
 import React, { useState, useEffect } from 'react';
 import { Upload, Video, Languages, Mic2, Sparkles, Check, Download, Share2, X, Copy, MessageCircle, Info, Rocket, Github, HelpCircle, AlertCircle } from 'lucide-react';
 import { DubbingState, Language, SUPPORTED_LANGUAGES, ScriptAnalysis, UILanguageCode } from './types';
