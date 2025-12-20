@@ -7,7 +7,7 @@ const ASSETS_TO_CACHE = [
   'https://cdn-icons-png.flaticon.com/512/3039/3039430.png'
 ];
 
-self.addEventListener('install', (event) => {npm install}
+self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
