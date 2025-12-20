@@ -9,7 +9,7 @@ const API_BASE_URL = "http://localhost:3000/api";
 // ==========================================
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.API_KEY;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNGVmYWYyNy00MTI2LTRjY2UtYjlmZC1jN2E2NGU0ZjZjNjIiLCJpc3MiOiJuOG4iLCJhdWQiOiJtY3Atc2VydmVyLWFwaSIsImp0aSI6IjRkYWEwOGU2LTM4NDItNDNlYy1hNDA5LWYzZTc2MGI0Njk4MSIsImlhdCI6MTc2NTM2NjU5Mn0.r8gNTtcAFsmwat4vbDqv6XoYSR4TgGUV_xUcALEI6sI
   if (!apiKey) throw new Error("API Key is missing. Please ensure your environment is configured.");
   return new GoogleGenAI({ apiKey });
 };
