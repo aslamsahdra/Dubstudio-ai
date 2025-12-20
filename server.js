@@ -3,7 +3,7 @@ import cors from 'cors';
 import { GoogleGenAI, Modality } from '@google/genai';
 import dotenv from 'dotenv';
 
-// Load environment variables (API Key)
+// Load environment variables (API Key)eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNGVmYWYyNy00MTI2LTRjY2UtYjlmZC1jN2E2NGU0ZjZjNjIiLCJpc3MiOiJuOG4iLCJhdWQiOiJtY3Atc2VydmVyLWFwaSIsImp0aSI6IjRkYWEwOGU2LTM4NDItNDNlYy1hNDA5LWYzZTc2MGI0Njk4MSIsImlhdCI6MTc2NTM2NjU5Mn0.r8gNTtcAFsmwat4vbDqv6XoYSR4TgGUV_xUcALEI6sI
 dotenv.config();
 
 const app = express();
