@@ -20,7 +20,7 @@ export const generateTranslatedScript = async (
   targetLanguage: Language
 ): Promise<ScriptAnalysis> => {
   
-  if (USE_CUSTOM_SERVER) {
+  if (USE_CUSTOM_SERVER) {tru
     try {
       const response = await fetch(`${API_BASE_URL}/analyze-script`, {
         method: 'POST',
