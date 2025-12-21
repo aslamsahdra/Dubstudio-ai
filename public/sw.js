@@ -1,10 +1,10 @@
 
-const CACHE_NAME = 'dubstudio-cache-v1';
+const CACHE_NAME = 'dubstudio-cache-v2'; // Updated version
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://cdn-icons-png.flaticon.com/512/3039/3039430.png'
+  'https://cdn-icons-png.flaticon.com/512/8100/8100371.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,11 +32,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // We prioritize network for video/audio requests
-  if (event.request.url.includes('googleSearch') || event.request.url.includes('api')) {
+  if (event.request.url.includes('api')) {
     return; 
   }
-
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);

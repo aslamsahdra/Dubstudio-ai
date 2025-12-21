@@ -2,25 +2,25 @@
 {
   "id": "com.aslam.dubstudio.ai",
   "short_name": "DubStudio",
-  "name": "DubStudio AI - Video Dubber",
-  "description": "Professional AI-powered video dubbing and translation tool. Translate any video into 50+ languages with natural AI voices.",
+  "name": "DubStudio AI - Pro Video Dubber",
+  "description": "Professional AI-powered video dubbing and translation tool. High-fidelity voice matching.",
   "lang": "en-US",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#0f172a",
-  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "background_color": "#020617",
   "orientation": "portrait",
   "categories": ["video", "productivity", "tools"],
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3039/3039430.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/8100/8100371.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3039/3039430.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/8100/8100371.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
