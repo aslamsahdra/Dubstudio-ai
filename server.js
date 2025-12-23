@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Modality } from '@google/genai';
@@ -21,6 +20,9 @@ console.log('---------------------');
 
 app.use(cors());
 app.use(express.json({ limit: '120mb' }));
+
+// Health check for Railway monitoring
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Static file serving from 'dist'
 const distPath = path.join(__dirname, 'dist');
@@ -121,6 +123,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on port ${port}`);
 });
