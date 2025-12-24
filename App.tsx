@@ -108,7 +108,6 @@ export default function App() {
   };
 
   const handleLogin = () => {
-    // Simulated Google Login
     setUser({
       name: 'Master Editor',
       email: 'editor@aslamsahdra.com',
@@ -126,24 +125,24 @@ export default function App() {
       <div className={`fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-[600px] bg-${themeColor}-600/10 blur-[150px] pointer-events-none -z-10 rounded-full transition-colors duration-700`} />
 
       <header className="border-b border-white/5 bg-slate-950/90 backdrop-blur-3xl sticky top-0 z-[100]">
-        <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
-          <div className="flex items-center gap-5 group cursor-pointer" onClick={() => {setShowHistory(false); setShowSettings(false); setVideoUrl(null);}}>
-            <div className={`bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} p-3 rounded-2xl shadow-xl transition-transform group-hover:scale-105`}>
-              <AudioLines className="w-6 h-6 text-white" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-24 flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-5 group cursor-pointer shrink" onClick={() => {setShowHistory(false); setShowSettings(false); setVideoUrl(null);}}>
+            <div className={`bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} p-2.5 sm:p-3 rounded-2xl shadow-xl transition-transform group-hover:scale-105 shrink-0`}>
+              <AudioLines className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-black text-white tracking-tighter uppercase">DubStudio <span className={themeColor === 'indigo' ? 'text-indigo-400' : themeColor === 'rose' ? 'text-rose-400' : themeColor === 'emerald' ? 'text-emerald-400' : themeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}>PRO</span></span>
-                <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded-full text-[8px] font-black text-slate-500 uppercase tracking-widest">Master Edition</span>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-lg sm:text-2xl font-black text-white tracking-tighter uppercase truncate">DubStudio <span className={themeColor === 'indigo' ? 'text-indigo-400' : themeColor === 'rose' ? 'text-rose-400' : themeColor === 'emerald' ? 'text-emerald-400' : themeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}>PRO</span></span>
+                <span className="hidden xs:inline-block px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-full text-[7px] font-black text-slate-500 uppercase tracking-widest shrink-0">Master</span>
               </div>
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] mt-0.5">BY ASLAM SAHDRA</span>
+              <span className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-0.5 truncate">BY ASLAM SAHDRA</span>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
              <button 
                 onClick={() => {setShowHistory(!showHistory); setShowSettings(false);}} 
-                className={`p-3 rounded-xl border transition-all hover:bg-white/5 ${showHistory ? `bg-${themeColor}-600 border-${themeColor}-400 text-white` : 'border-white/10 text-slate-400'}`}
+                className={`p-2.5 sm:p-3 rounded-xl border transition-all hover:bg-white/5 ${showHistory ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'border-white/10 text-slate-400'}`}
                 title="Gallery"
              >
                 <History className="w-5 h-5" />
@@ -151,15 +150,15 @@ export default function App() {
              
              <button 
                 onClick={() => {setShowSettings(!showSettings); setShowHistory(false);}} 
-                className={`p-3 rounded-xl border transition-all hover:bg-white/5 ${showSettings ? `bg-${themeColor}-600 border-${themeColor}-400 text-white` : 'border-white/10 text-slate-400'}`}
+                className={`p-2.5 sm:p-3 rounded-xl border transition-all hover:bg-white/5 ${showSettings ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'border-white/10 text-slate-400'}`}
                 title="Settings"
              >
                 <Settings className="w-5 h-5" />
              </button>
 
              {user ? (
-                <div className="hidden sm:flex items-center gap-3 pl-3 border-l border-white/10">
-                   <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} flex items-center justify-center text-white font-black text-xs`}>
+                <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-white/10">
+                   <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} flex items-center justify-center text-white font-black text-xs shadow-lg`}>
                      {user.name.charAt(0)}
                    </div>
                 </div>
@@ -181,25 +180,24 @@ export default function App() {
                   <div className={`w-12 h-12 rounded-2xl bg-${themeColor}-500/10 flex items-center justify-center text-${themeColor}-400 border border-${themeColor}-500/20 shadow-xl`}>
                      <Settings className="w-6 h-6" />
                   </div>
-                  <h2 className="text-4xl font-black text-white tracking-tight uppercase">ਸੈਟਿੰਗਜ਼ (Settings)</h2>
+                  <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">ਸੈਟਿੰਗਜ਼ (Settings)</h2>
                </div>
                <button onClick={() => setShowSettings(false)} className="p-3 bg-white/5 hover:bg-rose-500/10 hover:text-rose-500 rounded-full transition-all"><X className="w-6 h-6" /></button>
             </div>
 
             <div className="grid md:grid-cols-2 gap-8">
-               {/* Language & Theme Section */}
                <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-10">
                   <div className="space-y-6">
                      <div className="flex items-center gap-3">
                         <Palette className={`w-5 h-5 text-${themeColor}-400`} />
-                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਸਟੂਡੀਓ ਥੀਮ (Studio Theme)</span>
+                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਸਟੂਡੀਓ ਥੀਮ (Theme)</span>
                      </div>
-                     <div className="flex gap-4">
+                     <div className="flex flex-wrap gap-4">
                         {(['indigo', 'rose', 'emerald', 'amber', 'purple'] as ThemeColor[]).map(color => (
                           <button 
                             key={color} 
                             onClick={() => toggleTheme(color)}
-                            className={`w-12 h-12 rounded-2xl border-2 transition-all ${themeColor === color ? `border-white bg-${color}-500 scale-110 shadow-lg` : `border-transparent bg-${color}-900/40 hover:scale-105`}`}
+                            className={`w-12 h-12 rounded-2xl border-2 transition-all ${themeColor === color ? `border-white bg-${color}-500 scale-110 shadow-xl` : `border-transparent bg-${color}-900/40 hover:scale-105`}`}
                           />
                         ))}
                      </div>
@@ -208,17 +206,16 @@ export default function App() {
                   <div className="space-y-6">
                      <div className="flex items-center gap-3">
                         <Languages className={`w-5 h-5 text-${themeColor}-400`} />
-                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਭਾਸ਼ਾ ਚੁਣੋ (App Language)</span>
+                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਭਾਸ਼ਾ (Language)</span>
                      </div>
                      <div className="grid grid-cols-3 gap-3">
-                        <button onClick={() => setUiLanguage('pa')} className={`py-4 rounded-2xl border font-black text-sm transition-all ${uiLanguage === 'pa' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>ਪੰਜਾਬੀ</button>
-                        <button onClick={() => setUiLanguage('en')} className={`py-4 rounded-2xl border font-black text-sm transition-all ${uiLanguage === 'en' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>English</button>
-                        <button onClick={() => setUiLanguage('hi')} className={`py-4 rounded-2xl border font-black text-sm transition-all ${uiLanguage === 'hi' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>हिन्दी</button>
+                        <button onClick={() => setUiLanguage('pa')} className={`py-4 rounded-2xl border font-black text-xs sm:text-sm transition-all ${uiLanguage === 'pa' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>ਪੰਜਾਬੀ</button>
+                        <button onClick={() => setUiLanguage('en')} className={`py-4 rounded-2xl border font-black text-xs sm:text-sm transition-all ${uiLanguage === 'en' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>EN</button>
+                        <button onClick={() => setUiLanguage('hi')} className={`py-4 rounded-2xl border font-black text-xs sm:text-sm transition-all ${uiLanguage === 'hi' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>हिन्दी</button>
                      </div>
                   </div>
                </div>
 
-               {/* Account Sync Section */}
                <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-10">
                   <div className="space-y-8">
                      <div className="flex items-center gap-3">
@@ -228,9 +225,9 @@ export default function App() {
                      
                      {!user ? (
                         <div className="space-y-6">
-                           <p className="text-xs text-slate-500 font-medium leading-relaxed">Login to sync your dubbed master recordings with Google Drive and manage your subscription.</p>
+                           <p className="text-xs text-slate-500 font-medium leading-relaxed">Login to sync your dubbed master recordings with Google Drive.</p>
                            <button onClick={handleLogin} className={`w-full py-5 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:scale-[1.02] transition-all`}>
-                              <LogIn className="w-5 h-5" /> Login with Google
+                              <LogIn className="w-5 h-5" /> Google Login
                            </button>
                         </div>
                      ) : (
@@ -248,7 +245,7 @@ export default function App() {
                               <div className="flex items-center justify-between">
                                  <div className="flex items-center gap-2">
                                     <HardDrive className={`w-4 h-4 ${isDriveLinked ? 'text-emerald-400' : 'text-slate-600'}`} />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Google Drive Sync</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Drive Sync</span>
                                  </div>
                                  <button 
                                    onClick={() => setIsDriveLinked(!isDriveLinked)}
@@ -257,7 +254,6 @@ export default function App() {
                                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isDriveLinked ? 'left-7' : 'left-1'}`} />
                                  </button>
                               </div>
-                              <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Automatically upload exports to your private drive</p>
                            </div>
                         </div>
                      )}
@@ -425,11 +421,6 @@ export default function App() {
                               >
                                   <Download className="w-5 h-5" /> Export
                               </button>
-                              {isDriveLinked && (
-                                <button className={`px-8 py-5 bg-${themeColor}-600 text-white rounded-3xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-2xl`}>
-                                   <HardDrive className="w-5 h-5" /> Drive
-                                </button>
-                              )}
                             </div>
                         </div>
                     )}
@@ -440,41 +431,43 @@ export default function App() {
         )}
       </main>
 
-      {/* FOOTER - MAXIMUM BRANDING PROMINENCE */}
-      <footer className="py-24 text-center border-t border-white/5 bg-slate-950 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-12">
+      {/* FOOTER - MAXIMUM BRANDING PROMINENCE - ASLAM SAHDRA PRODUCTION */}
+      <footer className="py-28 text-center border-t border-white/5 bg-slate-950 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-14">
             <div className="flex items-center gap-12 opacity-40">
                <Cpu className={`w-6 h-6 text-${themeColor}-400`} />
                <div className="h-px w-32 bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
                <ShieldCheck className="w-6 h-6 text-emerald-400" />
             </div>
             
-            <div className="space-y-8">
-                <p className={`text-3xl text-white font-black tracking-tighter uppercase mb-4`}>
-                  DubStudio PRO <span className={`text-${themeColor}-400`}>Master</span>
-                </p>
-                <div className="flex flex-col items-center gap-5">
-                   <p className="text-4xl md:text-7xl text-white font-black uppercase tracking-[0.15em] leading-tight drop-shadow-[0_10px_30px_rgba(255,255,255,0.1)]">
+            <div className="space-y-8 w-full">
+                <div className="flex flex-col items-center gap-6">
+                   <p className="text-xs text-slate-500 font-black uppercase tracking-[1em] opacity-50">PRODUCED BY</p>
+                   <p className="text-4xl md:text-8xl text-white font-black uppercase tracking-[0.2em] leading-tight drop-shadow-[0_0_50px_rgba(255,255,255,0.15)] transition-all hover:tracking-[0.25em] duration-1000">
                       Aslam Sahdra Production
                    </p>
-                   <div className="h-1 w-24 bg-gradient-to-r from-transparent via-indigo-500 to-transparent mb-2" />
-                   <p className={`text-base md:text-xl text-${themeColor}-400/80 font-black tracking-[0.5em] uppercase`}>
+                   <div className={`h-1.5 w-48 bg-gradient-to-r from-transparent via-${themeColor}-500 to-transparent my-4`} />
+                   <p className={`text-lg md:text-2xl text-${themeColor}-400/90 font-black tracking-[0.6em] uppercase`}>
                       Neural Engine 2025 • High Fidelity Synthesis
                    </p>
                 </div>
             </div>
             
-            <div className="flex flex-col items-center gap-4 pt-12 border-t border-white/5 w-full max-w-2xl">
-              <p className="text-[11px] text-slate-700 font-black uppercase tracking-[1em]">Authorized Master Edition Studio</p>
-              <p className="text-[10px] text-slate-800 font-black uppercase tracking-widest">Build v1.4.8.2025 • All Rights Reserved • Master Credits: Aslam Sahdra</p>
+            <div className="flex flex-col items-center gap-6 pt-16 border-t border-white/5 w-full max-w-4xl">
+              <div className="flex items-center gap-8">
+                 <span className="text-[10px] text-slate-700 font-black uppercase tracking-widest">Master Studio Edition</span>
+                 <div className="w-1.5 h-1.5 bg-slate-800 rounded-full" />
+                 <span className="text-[10px] text-slate-700 font-black uppercase tracking-widest">Authorized Build v1.4.9</span>
+              </div>
+              <p className="text-[10px] text-slate-800 font-black uppercase tracking-[0.8em]">© 2025 ASLAM SAHDRA • ALL RIGHTS RESERVED</p>
             </div>
           </div>
           
-          {/* Decorative Background Labels */}
-          <div className="absolute top-20 left-10 rotate-90 text-[100px] font-black text-white/[0.02] pointer-events-none select-none uppercase tracking-tighter">
+          {/* Decorative Giant Text in Background */}
+          <div className="absolute top-1/2 left-0 -translate-y-1/2 rotate-90 text-[180px] font-black text-white/[0.01] pointer-events-none select-none uppercase tracking-tighter whitespace-nowrap">
             ASLAM SAHDRA
           </div>
-          <div className="absolute top-20 right-10 -rotate-90 text-[100px] font-black text-white/[0.02] pointer-events-none select-none uppercase tracking-tighter">
+          <div className="absolute top-1/2 right-0 -translate-y-1/2 -rotate-90 text-[180px] font-black text-white/[0.01] pointer-events-none select-none uppercase tracking-tighter whitespace-nowrap">
             MASTER EDITION
           </div>
       </footer>
