@@ -16,44 +16,44 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '300mb' })); // Increased for longer videos
+app.use(express.json({ limit: '300mb' })); 
 
-// Critical Production Path Setup
 const distPath = path.resolve(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
-  console.log('DubStudio PRO: Serving from /dist');
   app.use(express.static(distPath));
 } else {
-  console.log('DubStudio PRO: Running in Development/Root mode');
   app.use(express.static(__dirname));
   if (fs.existsSync(path.resolve(__dirname, 'public'))) {
     app.use(express.static(path.resolve(__dirname, 'public')));
   }
 }
 
-// API: Script Analysis
+// API: Script Analysis (STRICT GENDER CHECK)
 app.post('/api/analyze-script', async (req, res) => {
   try {
     const { videoData, mimeType, targetLanguageCode } = req.body;
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "API_KEY configuration missing on Railway." });
+    if (!apiKey) return res.status(500).json({ error: "Missing API_KEY" });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
-    const prompt = `Task: Master Production Video Dubbing Analysis.
-    Analyze the video to identify ALL distinct speakers.
-    Translate the dialogue naturally into ${targetLanguageCode}.
-    Branding: Credit as "Aslam Sahdra Production".
+    const prompt = `You are a professional video dubbing specialist at "Aslam Sahdra Production".
+    TASK: Translate the dialogue to ${targetLanguageCode} with 100% accuracy.
+    
+    STRICT GENDER RULES:
+    1. Identify the gender of the speaker by looking for facial hair, jawline, clothing, and body type.
+    2. If the person is a MAN, you MUST label them "MALE". 
+    3. If the person is a WOMAN, you MUST label them "FEMALE".
+    4. NO EXCUSES for swapping genders. 
     
     Output JSON ONLY:
     {
       "speakers": [
-        { "id": "Speaker 1", "gender": "MALE", "age": "ADULT" },
-        { "id": "Speaker 2", "gender": "FEMALE", "age": "CHILD" }
+        { "id": "Speaker 1", "gender": "MALE", "age": "ADULT" }
       ],
       "script": [
-        { "speakerId": "Speaker 1", "text": "Translated line..." }
+        { "speakerId": "Speaker 1", "text": "Translated dialogue..." }
       ]
     }`;
 
@@ -61,7 +61,7 @@ app.post('/api/analyze-script', async (req, res) => {
       model,
       contents: {
         parts: [
-          { inlineData: { mimeType: mimeType, data: videoData } },
+          { inlineData: { mimeType, data: videoData } },
           { text: prompt }
         ]
       },
@@ -78,7 +78,7 @@ app.post('/api/analyze-script', async (req, res) => {
 
     res.json({ transcript: formattedTranscript, speakers });
   } catch (error) {
-    res.status(500).json({ error: "Video too large or analysis failed. Try a shorter clip." });
+    res.status(500).json({ error: "Vocal analysis failed." });
   }
 });
 
@@ -92,8 +92,8 @@ app.post('/api/generate-audio', async (req, res) => {
 
     const getVoice = (s) => {
       if (s.age === 'CHILD') return 'Puck'; 
-      if (s.gender === 'FEMALE') return 'Kore';
-      return 'Fenrir';
+      if (s.gender === 'FEMALE') return 'Kore'; // Dedicated female voice
+      return 'Fenrir'; // Dedicated strong male voice
     };
 
     const validSpeakers = (analysis.speakers || []).slice(0, 2);
@@ -123,17 +123,14 @@ app.post('/api/generate-audio', async (req, res) => {
     const audioBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     res.json({ audioBase64 });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "TTS failed." });
   }
 });
 
-// Final Fallback for Railway SPA
 app.get('*', (req, res) => {
   let indexPath = path.join(distPath, 'index.html');
-  if (!fs.existsSync(indexPath)) {
-    indexPath = path.join(__dirname, 'index.html');
-  }
+  if (!fs.existsSync(indexPath)) indexPath = path.join(__dirname, 'index.html');
   res.sendFile(indexPath);
 });
 
-app.listen(port, '0.0.0.0', () => console.log(`Aslam Sahdra Production Server: Online on Port ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`Sahdra Production Server: Port ${port}`));
