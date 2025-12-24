@@ -15,7 +15,8 @@ export const translations: Record<UILanguageCode, any> = {
     step3: "Synthesizing AI voices...",
     step4: "Finalizing production...",
     maxSize: "MP4, WebM (Max 100MB)",
-    targetLanguage: "Target Dialect"
+    targetLanguage: "Target Dialect",
+    change: "Change"
   },
   pa: {
     appName: "ਡਬਸਟੂਡੀਓ PRO",
@@ -30,7 +31,8 @@ export const translations: Record<UILanguageCode, any> = {
     step3: "ਨਿਊਰਲ ਸਿੰਥੇਸਿਸ ਜਾਰੀ ਹੈ...",
     step4: "ਸਿੰਕ ਫਾਈਨਲ ਹੋ ਰਿਹਾ ਹੈ...",
     maxSize: "MP4, WebM (ਅਸਲਮ ਸਾਹਦਰਾ ਪ੍ਰੋਡਕਸ਼ਨ)",
-    targetLanguage: "ਟਾਰਗੇਟ ਭਾਸ਼ਾ"
+    targetLanguage: "ਟਾਰਗੇਟ ਭਾਸ਼ਾ",
+    change: "ਬਦਲੋ"
   },
   hi: {
     appName: "डबस्टूडियो PRO",
@@ -45,6 +47,7 @@ export const translations: Record<UILanguageCode, any> = {
     step3: "न्यूरल सिंथेसिस जारी है...",
     step4: "सिंक फाइनल हो रहा है...",
     maxSize: "MP4, WebM (असलम साहदरा प्रोडक्शन)",
-    targetLanguage: "टारगेट भाषा"
+    targetLanguage: "टारगेट भाषा",
+    change: "बदलें"
   }
 };
