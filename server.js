@@ -34,19 +34,25 @@ app.post('/api/analyze-script', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
-    const prompt = `Task: High-Fidelity Professional Video Dubbing Analysis.
-    1. Watch the video meticulously.
-    2. Identify unique speakers and their characteristics.
-    3. CRITICAL REQUIREMENT: For each speaker, determine:
-       - Gender (MALE or FEMALE)
-       - Age Group (ADULT or CHILD) - This is vital for natural voice matching.
-    4. Translate the content precisely to ${targetLanguageCode}, maintaining the original tone and timing.
-    5. Output the result in valid JSON format.
+    const prompt = `Task: Professional Multi-Speaker Video Dubbing Analysis.
+    Analyze the video meticulously to identify ALL speakers and their distinct vocal characteristics.
     
-    Format:
+    CRITICAL INSTRUCTIONS:
+    1. For each speaker, determine:
+       - Gender: Is the speaker MALE or FEMALE?
+       - Age Group: Is the speaker an ADULT or a CHILD? (Watch for pitch and appearance).
+    2. Identify who is speaking at which time.
+    3. Translate all speech accurately into ${targetLanguageCode}.
+    
+    Output JSON format only:
     {
-      "speakers": [{"id": "Speaker A", "gender": "MALE/FEMALE", "age": "ADULT/CHILD"}],
-      "script": [{"speakerId": "Speaker A", "text": "Translated text matching the timestamp"}]
+      "speakers": [
+        { "id": "Speaker A", "gender": "MALE", "age": "ADULT" },
+        { "id": "Speaker B", "gender": "FEMALE", "age": "CHILD" }
+      ],
+      "script": [
+        { "speakerId": "Speaker A", "text": "Translated text..." }
+      ]
     }`;
 
     const response = await ai.models.generateContent({
@@ -84,12 +90,12 @@ app.post('/api/generate-audio', async (req, res) => {
     let speechConfig = {};
     const validSpeakers = (analysis.speakers || []).slice(0, 2);
 
-    // VOICE MAPPING LOGIC:
-    // Adult Male -> Fenrir (Strong) / Zephyr (Smooth)
-    // Adult Female -> Kore (Clear)
-    // Child -> Puck (High pitch/Playful) / Charon
+    // SMARTER VOICE MAPPING FOR REALISM:
+    // Adult Male -> Fenrir (Strong, Deep)
+    // Adult Female -> Kore (Clear, Natural)
+    // Child -> Puck (High pitch, Young)
     
-    if (validSpeakers.length === 2) {
+    if (validSpeakers.length >= 2) {
       speechConfig = {
         multiSpeakerVoiceConfig: {
           speakerVoiceConfigs: [
@@ -105,7 +111,7 @@ app.post('/api/generate-audio', async (req, res) => {
               speaker: validSpeakers[1].id,
               voiceConfig: { 
                 prebuiltVoiceConfig: { 
-                  voiceName: validSpeakers[1].age === 'CHILD' ? 'Charon' : (validSpeakers[1].gender === 'FEMALE' ? 'Puck' : 'Zephyr') 
+                  voiceName: validSpeakers[1].age === 'CHILD' ? 'Puck' : (validSpeakers[1].gender === 'FEMALE' ? 'Kore' : 'Fenrir') 
                 } 
               }
             }
@@ -114,7 +120,7 @@ app.post('/api/generate-audio', async (req, res) => {
       };
     } else {
       const sp = validSpeakers[0];
-      const primaryVoice = sp?.age === 'CHILD' ? 'Puck' : (sp?.gender === 'FEMALE' ? 'Kore' : 'Zephyr');
+      const primaryVoice = sp?.age === 'CHILD' ? 'Puck' : (sp?.gender === 'FEMALE' ? 'Kore' : 'Fenrir');
       speechConfig = {
         voiceConfig: {
           prebuiltVoiceConfig: { voiceName: primaryVoice }

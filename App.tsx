@@ -4,7 +4,7 @@ import {
   Upload, Mic2, Check, Download, X, History, Trash2, PlayCircle, 
   AudioLines, Languages, Sparkles, AlertCircle, RefreshCcw, LayoutGrid, 
   Cpu, ShieldCheck, Settings, Palette, LogIn, HardDrive, User, LogOut, 
-  Smartphone, Crown, Play
+  Smartphone, Crown, Play, ArrowDownToLine
 } from 'lucide-react';
 import { DubbingState, Language, SUPPORTED_LANGUAGES, UILanguageCode } from './types';
 import { fileToBase64, pcmToWavBlob } from './utils/fileUtils';
@@ -29,7 +29,7 @@ export default function App() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [dubbedAudioUrl, setDubbedAudioUrl] = useState<string | null>(null);
-  const [uiLanguage, setUiLanguage] = useState<UILanguageCode>('pa'); 
+  const [uiLanguage, setUiLanguage] = useState<UILanguageCode>('en'); // Default to English
   const [targetLanguage, setTargetLanguage] = useState<Language>(SUPPORTED_LANGUAGES[0]); 
   const [dubbingState, setDubbingState] = useState<DubbingState>({ status: 'idle' });
   const [showHistory, setShowHistory] = useState(false);
@@ -38,7 +38,8 @@ export default function App() {
   const [themeColor, setThemeColor] = useState<ThemeColor>('indigo');
   const [user, setUser] = useState<{name: string, email: string, isPremium: boolean} | null>(null);
   const [isDriveLinked, setIsDriveLinked] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showAd, setShowAd] = useState(false);
   const [adTimer, setAdTimer] = useState(15);
   const [pendingVideoDuration, setPendingVideoDuration] = useState(0);
@@ -58,14 +59,24 @@ export default function App() {
     if (saved) setHistory(JSON.parse(saved));
     const savedTheme = localStorage.getItem('dub_v4_theme') as ThemeColor;
     if (savedTheme) setThemeColor(savedTheme);
+    const savedLang = localStorage.getItem('dub_v4_lang') as UILanguageCode;
+    if (savedLang) setUiLanguage(savedLang);
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      setInstallPrompt(e);
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
     });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.debug('SW Registration failed', err));
+      });
     }
   }, []);
 
@@ -80,11 +91,14 @@ export default function App() {
     return () => clearInterval(timer);
   }, [showAd, adTimer]);
 
-  const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') setInstallPrompt(null);
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,7 +119,7 @@ export default function App() {
 
   const startDubbingProcess = () => {
     if (pendingVideoDuration > 120 && (!user || !user.isPremium)) {
-      alert(uiLanguage === 'pa' ? "2 ਮਿੰਟ ਤੋਂ ਵੱਡੀ ਵੀਡੀਓ ਲਈ ਪ੍ਰੀਮੀਅਮ ਪਲਾਨ ਚਾਹੀਦਾ ਹੈ।" : "Premium required for >2m videos.");
+      alert(uiLanguage === 'pa' ? "2 ਮਿੰਟ ਤੋਂ ਵੱਡੀ ਵੀਡੀਓ ਲਈ ਪ੍ਰੀਮੀਅਮ ਪਲਾਨ ਚਾਹੀਦਾ ਹੈ।" : "Premium required for videos longer than 2 minutes.");
       return;
     }
 
@@ -135,55 +149,69 @@ export default function App() {
     }
   };
 
-  const toggleTheme = (color: ThemeColor) => {
-    setThemeColor(color);
-    localStorage.setItem('dub_v4_theme', color);
+  const changeLanguage = (lang: UILanguageCode) => {
+    setUiLanguage(lang);
+    localStorage.setItem('dub_v4_lang', lang);
   };
 
   return (
     <div className={`min-h-screen bg-[#020617] text-slate-200 flex flex-col font-sans selection:bg-${themeColor}-500/30 overflow-x-hidden transition-colors duration-500`}>
+      {/* Installation Banner */}
+      {showInstallBanner && (
+        <div className={`bg-gradient-to-r ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} py-4 px-6 flex items-center justify-between animate-in slide-in-from-top duration-500 z-[110]`}>
+           <div className="flex items-center gap-4">
+              <div className="bg-white/20 p-2 rounded-xl">
+                 <Smartphone className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                 <p className="text-white font-black text-sm uppercase tracking-tighter">{uiLanguage === 'pa' ? 'ਐਪ ਇੰਸਟਾਲ ਕਰੋ' : 'Install Master App'}</p>
+                 <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">{uiLanguage === 'pa' ? 'ਤੇਜ਼ ਅਤੇ ਬਿਹਤਰ ਅਨੁਭਵ ਲਈ' : 'For faster access and pro features'}</p>
+              </div>
+           </div>
+           <div className="flex items-center gap-3">
+              <button onClick={handleInstallClick} className="bg-white text-black px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg">
+                 Install
+              </button>
+              <button onClick={() => setShowInstallBanner(false)} className="text-white/50 hover:text-white transition-colors p-1">
+                 <X className="w-5 h-5" />
+              </button>
+           </div>
+        </div>
+      )}
+
       <div className={`fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-[600px] bg-${themeColor}-600/10 blur-[150px] pointer-events-none -z-10 rounded-full transition-colors duration-700`} />
 
       <header className="border-b border-white/5 bg-slate-950/90 backdrop-blur-3xl sticky top-0 z-[100]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-24 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-5 group cursor-pointer shrink" onClick={() => window.location.reload()}>
-            <div className={`bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} p-2.5 sm:p-3 rounded-2xl shadow-xl transition-transform group-hover:scale-105 shrink-0`}>
-              <AudioLines className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-24 flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-6 group cursor-pointer shrink" onClick={() => window.location.reload()}>
+            <div className={`bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} p-2.5 sm:p-3.5 rounded-2xl shadow-xl transition-transform group-hover:scale-105 shrink-0`}>
+              <AudioLines className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-lg sm:text-2xl font-black text-white tracking-tighter uppercase truncate">DubStudio <span className={themeColor === 'indigo' ? 'text-indigo-400' : themeColor === 'rose' ? 'text-rose-400' : themeColor === 'emerald' ? 'text-emerald-400' : themeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}>PRO</span></span>
                 {user?.isPremium && <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />}
               </div>
-              <span className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-0.5 truncate">BY ASLAM SAHDRA</span>
+              <span className="text-[8px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.4em] mt-0.5 truncate">ASLAM SAHDRA PRODUCTION</span>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4">
-             {installPrompt && (
-                <button 
-                  onClick={handleInstall}
-                  className={`hidden md:flex items-center gap-2 px-4 py-2.5 bg-${themeColor}-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-${themeColor}-600/20`}
-                >
-                  <Smartphone className="w-4 h-4" /> Install App
-                </button>
-             )}
-             
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
              <button 
                 onClick={() => {setShowSettings(!showSettings); setShowHistory(false);}} 
-                className={`p-2.5 sm:p-3 rounded-xl border transition-all hover:bg-white/5 ${showSettings ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'border-white/10 text-slate-400'}`}
+                className={`p-2.5 sm:p-3.5 rounded-xl border transition-all hover:bg-white/5 ${showSettings ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'border-white/10 text-slate-400'}`}
              >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-5 h-5 sm:w-6 sm:h-6" />
              </button>
 
              {user ? (
-                <div className="flex items-center gap-3 pl-3 border-l border-white/10">
-                   <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} flex items-center justify-center text-white font-black text-xs shadow-lg`}>
+                <div className="flex items-center gap-3 pl-3 sm:pl-4 border-l border-white/10">
+                   <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} flex items-center justify-center text-white font-black text-sm shadow-lg border-2 border-white/20`}>
                      {user.name.charAt(0)}
                    </div>
                 </div>
              ) : (
-                <button onClick={() => setUser({name: 'Aslam User', email: 'user@sahdra.com', isPremium: false})} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                <button onClick={() => setUser({name: 'Master User', email: 'user@sahdra.com', isPremium: false})} className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                    <LogIn className="w-4 h-4" /> Login
                 </button>
              )}
@@ -202,8 +230,8 @@ export default function App() {
                  <Play className="w-16 h-16 text-white fill-white" />
               </div>
               <div className="space-y-4">
-                <h2 className="text-4xl sm:text-6xl font-black text-white uppercase tracking-tighter">ਡੱਬਿੰਗ ਪ੍ਰੋਸੈਸਿੰਗ ਲਈ ਐਡ ਦੇਖੋ</h2>
-                <p className="text-xl text-slate-400 font-bold">Watch a short ad to unlock high-fidelity neural dubbing for this video.</p>
+                <h2 className="text-4xl sm:text-6xl font-black text-white uppercase tracking-tighter">{uiLanguage === 'pa' ? 'ਡੱਬਿੰਗ ਲਈ ਐਡ ਦੇਖੋ' : 'Watch Ad for Dubbing'}</h2>
+                <p className="text-xl text-slate-400 font-bold">Watch a short ad to unlock master neural dubbing for your production.</p>
               </div>
               <div className="p-12 bg-white/5 rounded-[4rem] border border-white/5">
                  <p className="text-sm font-black text-indigo-400 uppercase tracking-[0.4em]">Advertising Partner: Sahdra Network</p>
@@ -219,20 +247,20 @@ export default function App() {
         {showSettings ? (
           <div className="animate-in fade-in slide-in-from-top-4 duration-500 max-w-4xl mx-auto space-y-12">
             <div className="flex items-center justify-between border-b border-white/10 pb-8">
-               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">ਸੈਟਿੰਗਜ਼ (Settings)</h2>
+               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">Settings</h2>
                <button onClick={() => setShowSettings(false)} className="p-3 bg-white/5 rounded-full"><X className="w-6 h-6" /></button>
             </div>
             <div className="grid md:grid-cols-2 gap-8">
                <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-8">
                   <span className="text-xs font-black uppercase tracking-widest text-slate-500">Studio Configuration</span>
                   <div className="grid grid-cols-3 gap-3">
-                     <button onClick={() => setUiLanguage('pa')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'pa' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>ਪੰਜਾਬੀ</button>
-                     <button onClick={() => setUiLanguage('en')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'en' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>EN</button>
-                     <button onClick={() => setUiLanguage('hi')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'hi' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>हिन्दी</button>
+                     <button onClick={() => changeLanguage('pa')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'pa' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>ਪੰਜਾਬੀ</button>
+                     <button onClick={() => changeLanguage('en')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'en' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>ENGLISH</button>
+                     <button onClick={() => changeLanguage('hi')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'hi' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>हिन्दी</button>
                   </div>
                   <div className="flex gap-4">
                      {(['indigo', 'rose', 'emerald', 'amber', 'purple'] as ThemeColor[]).map(color => (
-                        <button key={color} onClick={() => toggleTheme(color)} className={`w-12 h-12 rounded-2xl border-2 ${themeColor === color ? 'border-white' : 'border-transparent'} bg-${color}-500`} />
+                        <button key={color} onClick={() => setThemeColor(color)} className={`w-12 h-12 rounded-2xl border-2 ${themeColor === color ? 'border-white' : 'border-transparent'} bg-${color}-500`} />
                      ))}
                   </div>
                </div>

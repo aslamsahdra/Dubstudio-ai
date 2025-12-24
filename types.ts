@@ -20,6 +20,7 @@ export interface DubbingState {
 export interface Speaker {
   id: string; // e.g., "Speaker A"
   gender: 'MALE' | 'FEMALE';
+  age: 'ADULT' | 'CHILD';
 }
 
 export interface ScriptAnalysis {
