@@ -16,41 +16,35 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '200mb' }));
+app.use(express.json({ limit: '300mb' })); // Increased for longer videos
 
-// Set path for production build
+// Critical Production Path Setup
 const distPath = path.resolve(__dirname, 'dist');
-
-// Serve static files from 'dist' first (critical for Railway/Production)
 if (fs.existsSync(distPath)) {
-  console.log('Serving from dist folder...');
+  console.log('DubStudio PRO: Serving from /dist');
   app.use(express.static(distPath));
 } else {
-  console.log('Dist folder not found, serving from root...');
+  console.log('DubStudio PRO: Running in Development/Root mode');
   app.use(express.static(__dirname));
-  const publicPath = path.resolve(__dirname, 'public');
-  if (fs.existsSync(publicPath)) {
-    app.use(express.static(publicPath));
+  if (fs.existsSync(path.resolve(__dirname, 'public'))) {
+    app.use(express.static(path.resolve(__dirname, 'public')));
   }
 }
 
-// Health Check
-app.get('/health', (req, res) => res.status(200).json({ status: 'OK', production: true }));
-
-// API: Analyze Script
+// API: Script Analysis
 app.post('/api/analyze-script', async (req, res) => {
   try {
     const { videoData, mimeType, targetLanguageCode } = req.body;
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "API_KEY variable is missing on Railway dashboard" });
+    if (!apiKey) return res.status(500).json({ error: "API_KEY configuration missing on Railway." });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
-    const prompt = `Task: Professional Multi-Speaker Video Dubbing Analysis.
-    Analyze the video to identify ALL speakers.
-    CRITICAL: Detect if any speaker is a CHILD (high pitch, small stature) vs ADULT.
+    const prompt = `Task: Master Production Video Dubbing Analysis.
+    Analyze the video to identify ALL distinct speakers.
     Translate the dialogue naturally into ${targetLanguageCode}.
+    Branding: Credit as "Aslam Sahdra Production".
     
     Output JSON ONLY:
     {
@@ -84,11 +78,11 @@ app.post('/api/analyze-script', async (req, res) => {
 
     res.json({ transcript: formattedTranscript, speakers });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Video too large or analysis failed. Try a shorter clip." });
   }
 });
 
-// API: Generate Audio (TTS)
+// API: Audio Synthesis (TTS)
 app.post('/api/generate-audio', async (req, res) => {
   try {
     const { analysis } = req.body;
@@ -97,9 +91,9 @@ app.post('/api/generate-audio', async (req, res) => {
     const model = 'gemini-2.5-flash-preview-tts'; 
 
     const getVoice = (s) => {
-      if (s.age === 'CHILD') return 'Puck'; // Natural Child voice
+      if (s.age === 'CHILD') return 'Puck'; 
       if (s.gender === 'FEMALE') return 'Kore';
-      return 'Fenrir'; // Deep Male voice
+      return 'Fenrir';
     };
 
     const validSpeakers = (analysis.speakers || []).slice(0, 2);
@@ -133,7 +127,7 @@ app.post('/api/generate-audio', async (req, res) => {
   }
 });
 
-// SPA Catch-all: Always serve the build's index.html
+// Final Fallback for Railway SPA
 app.get('*', (req, res) => {
   let indexPath = path.join(distPath, 'index.html');
   if (!fs.existsSync(indexPath)) {
@@ -142,4 +136,4 @@ app.get('*', (req, res) => {
   res.sendFile(indexPath);
 });
 
-app.listen(port, '0.0.0.0', () => console.log(`Master Server running on port ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`Aslam Sahdra Production Server: Online on Port ${port}`));
