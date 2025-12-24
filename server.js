@@ -18,40 +18,48 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '200mb' }));
 
-// Static Assets
+// Set path for production build
 const distPath = path.resolve(__dirname, 'dist');
+
+// Serve static files from 'dist' first (critical for Railway/Production)
 if (fs.existsSync(distPath)) {
+  console.log('Serving from dist folder...');
   app.use(express.static(distPath));
 } else {
+  console.log('Dist folder not found, serving from root...');
   app.use(express.static(__dirname));
-  if (fs.existsSync(path.resolve(__dirname, 'public'))) {
-    app.use(express.static(path.resolve(__dirname, 'public')));
+  const publicPath = path.resolve(__dirname, 'public');
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
   }
 }
+
+// Health Check
+app.get('/health', (req, res) => res.status(200).json({ status: 'OK', production: true }));
 
 // API: Analyze Script
 app.post('/api/analyze-script', async (req, res) => {
   try {
     const { videoData, mimeType, targetLanguageCode } = req.body;
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "API_KEY environment variable is missing on Railway" });
+    if (!apiKey) return res.status(500).json({ error: "API_KEY variable is missing on Railway dashboard" });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
     const prompt = `Task: Professional Multi-Speaker Video Dubbing Analysis.
-    Identify ALL speakers in the video.
-    Crucial: Differentiate between Adults and Children based on vocal pitch.
-    Translate precisely into ${targetLanguageCode}.
+    Analyze the video to identify ALL speakers.
+    CRITICAL: Detect if any speaker is a CHILD (high pitch, small stature) vs ADULT.
+    Translate the dialogue naturally into ${targetLanguageCode}.
     
     Output JSON ONLY:
     {
       "speakers": [
-        { "id": "Speaker A", "gender": "MALE", "age": "ADULT" },
-        { "id": "Speaker B", "gender": "FEMALE", "age": "CHILD" }
+        { "id": "Speaker 1", "gender": "MALE", "age": "ADULT" },
+        { "id": "Speaker 2", "gender": "FEMALE", "age": "CHILD" }
       ],
       "script": [
-        { "speakerId": "Speaker A", "text": "Translated dialogue..." }
+        { "speakerId": "Speaker 1", "text": "Translated line..." }
       ]
     }`;
 
@@ -80,7 +88,7 @@ app.post('/api/analyze-script', async (req, res) => {
   }
 });
 
-// API: Generate Audio
+// API: Generate Audio (TTS)
 app.post('/api/generate-audio', async (req, res) => {
   try {
     const { analysis } = req.body;
@@ -89,9 +97,9 @@ app.post('/api/generate-audio', async (req, res) => {
     const model = 'gemini-2.5-flash-preview-tts'; 
 
     const getVoice = (s) => {
-      if (s.age === 'CHILD') return 'Puck'; // Natural Child Voice
+      if (s.age === 'CHILD') return 'Puck'; // Natural Child voice
       if (s.gender === 'FEMALE') return 'Kore';
-      return 'Fenrir'; // Deep Male Voice
+      return 'Fenrir'; // Deep Male voice
     };
 
     const validSpeakers = (analysis.speakers || []).slice(0, 2);
@@ -125,11 +133,13 @@ app.post('/api/generate-audio', async (req, res) => {
   }
 });
 
-// SPA Fallback
+// SPA Catch-all: Always serve the build's index.html
 app.get('*', (req, res) => {
   let indexPath = path.join(distPath, 'index.html');
-  if (!fs.existsSync(indexPath)) indexPath = path.join(__dirname, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    indexPath = path.join(__dirname, 'index.html');
+  }
   res.sendFile(indexPath);
 });
 
-app.listen(port, '0.0.0.0', () => console.log(`DubStudio Server running on port ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`Master Server running on port ${port}`));
