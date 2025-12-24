@@ -92,7 +92,8 @@ const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({ state, uiLanguage
               <div key={step.id} className="relative group">
                 <div className={`flex flex-col items-center gap-4 p-6 rounded-[2.5rem] border-2 transition-all duration-700 ${isActive ? 'bg-indigo-600 border-indigo-400 shadow-3xl shadow-indigo-500/20 scale-105' : isPast ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : 'bg-white/5 border-transparent opacity-30'}`}>
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isActive ? 'bg-white text-indigo-600' : isPast ? 'bg-emerald-500 text-white' : 'text-slate-600'}`}>
-                    {isPast ? <Check className="w-6 h-6" /> : React.cloneElement(step.icon as React.ReactElement, { className: isActive ? 'animate-pulse w-6 h-6' : 'w-6 h-6' })}
+                    {/* Fix: cast step.icon as React.ReactElement<any> to allow the className prop during cloning */}
+                    {isPast ? <Check className="w-6 h-6" /> : React.cloneElement(step.icon as React.ReactElement<any>, { className: isActive ? 'animate-pulse w-6 h-6' : 'w-6 h-6' })}
                   </div>
                   <div className="text-center">
                     <h4 className={`text-[8px] font-black uppercase tracking-[0.2em] leading-tight ${isActive ? 'text-white' : 'text-slate-500'}`}>{step.label}</h4>
