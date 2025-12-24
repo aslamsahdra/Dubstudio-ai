@@ -19,34 +19,26 @@ console.log(`📡 Port: ${port}`);
 console.log(`🔑 API Key: ${process.env.API_KEY ? 'ACTIVE' : 'NOT DETECTED'}`);
 
 app.use(cors());
-app.use(express.json({ limit: '120mb' }));
+app.use(express.json({ limit: '150mb' })); // Increased limit for larger videos
 
-// Health Check for Railway/GCP
 app.get('/health', (req, res) => res.status(200).json({ status: 'OK', uptime: process.uptime() }));
 
-// Serve Static Frontend from 'dist' folder
 const distPath = path.resolve(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
-  console.log(`✅ Serving production frontend from: ${distPath}`);
   app.use(express.static(distPath));
-} else {
-  console.warn('⚠️ WARNING: "dist" folder not found. Did you run "npm run build"?');
 }
 
-// API: Analyze video and generate script
 app.post('/api/analyze-script', async (req, res) => {
   try {
     const { videoData, mimeType, targetLanguageCode } = req.body;
     const apiKey = process.env.API_KEY;
-    
-    if (!apiKey) {
-      return res.status(500).json({ error: "API_KEY is missing on the server." });
-    }
+    if (!apiKey) return res.status(500).json({ error: "API_KEY is missing." });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
-    const prompt = `Analyze this video. Identify speakers and translate all dialogue into ${targetLanguageCode}. 
+    const prompt = `Carefully watch this video and translate ALL dialogue into ${targetLanguageCode}.
+    IMPORTANT: Identify each unique speaker. 
     Output ONLY valid JSON: 
     {
       "speakers": [{"id": "Speaker A", "gender": "MALE/FEMALE"}],
@@ -63,13 +55,13 @@ app.post('/api/analyze-script', async (req, res) => {
       },
       config: { 
         responseMimeType: "application/json",
-        temperature: 0
+        temperature: 0.1
       }
     });
 
     const result = JSON.parse(response.text.trim());
     const formattedTranscript = (result.script || []).map(line => `${line.speakerId}: ${line.text}`).join('\n');
-    const speakers = (result.speakers || []).map(s => ({
+    const speakers = (result.speakers || []).slice(0, 2).map(s => ({
       id: s.id,
       gender: s.gender?.toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE'
     }));
@@ -81,35 +73,49 @@ app.post('/api/analyze-script', async (req, res) => {
   }
 });
 
-// API: Generate Audio (TTS)
 app.post('/api/generate-audio', async (req, res) => {
   try {
     const { analysis } = req.body;
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "API_KEY is missing on the server." });
+    if (!apiKey) return res.status(500).json({ error: "API_KEY missing" });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-2.5-flash-preview-tts'; 
 
-    const speakerConfigs = analysis.speakers.map((s, idx) => ({
-      speaker: s.id,
-      voiceConfig: { 
-        prebuiltVoiceConfig: { 
-          voiceName: s.gender === 'FEMALE' ? 'Kore' : (idx % 2 === 0 ? 'Fenrir' : 'Puck')
-        } 
-      }
-    }));
+    let speechConfig = {};
+
+    // Gemini API Rule: multiSpeakerVoiceConfig MUST have exactly 2 speakers.
+    if (analysis.speakers.length === 2) {
+      speechConfig = {
+        multiSpeakerVoiceConfig: {
+          speakerVoiceConfigs: analysis.speakers.map((s, idx) => ({
+            speaker: s.id,
+            voiceConfig: { 
+              prebuiltVoiceConfig: { 
+                voiceName: s.gender === 'FEMALE' ? 'Kore' : (idx === 0 ? 'Fenrir' : 'Puck')
+              } 
+            }
+          }))
+        }
+      };
+    } else {
+      // Fallback for 1 speaker or more than 2 speakers (Gemini only supports 2 for multi-speaker)
+      const primaryGender = analysis.speakers[0]?.gender || 'MALE';
+      speechConfig = {
+        voiceConfig: {
+          prebuiltVoiceConfig: { 
+            voiceName: primaryGender === 'FEMALE' ? 'Kore' : 'Zephyr' 
+          }
+        }
+      };
+    }
 
     const response = await ai.models.generateContent({
       model,
       contents: { parts: [{ text: analysis.transcript }] },
       config: {
         responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          multiSpeakerVoiceConfig: {
-            speakerVoiceConfigs: speakerConfigs
-          }
-        }
+        speechConfig
       }
     });
 
@@ -123,16 +129,10 @@ app.post('/api/generate-audio', async (req, res) => {
   }
 });
 
-// SPA Fallback: All other routes serve index.html
 app.get('*', (req, res) => {
   const indexPath = path.join(distPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).send('Production build not found. Ensure "npm run build" was executed.');
-  }
+  if (fs.existsSync(indexPath)) res.sendFile(indexPath);
+  else res.status(404).send('Build not found.');
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Server is listening on 0.0.0.0:${port}`);
-});
+app.listen(port, '0.0.0.0', () => console.log(`✅ Live on port ${port}`));
