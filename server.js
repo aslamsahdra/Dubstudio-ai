@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Modality } from '@google/genai';
@@ -17,7 +18,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '200mb' }));
 
-app.get('/health', (req, res) => res.status(200).json({ status: 'OK', engine: 'Neural 2025' }));
+app.get('/health', (req, res) => res.status(200).json({ status: 'OK', engine: 'Neural 2025 Master' }));
 
 const distPath = path.resolve(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
@@ -33,16 +34,19 @@ app.post('/api/analyze-script', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
-    const prompt = `Task: High-Fidelity Video Dubbing Analysis.
+    const prompt = `Task: High-Fidelity Professional Video Dubbing Analysis.
     1. Watch the video meticulously.
-    2. Identify unique speakers.
-    3. ABSOLUTE REQUIREMENT: Determine if each speaker is MALE or FEMALE by visual and auditory cues.
-    4. Translate the content to ${targetLanguageCode}.
+    2. Identify unique speakers and their characteristics.
+    3. CRITICAL REQUIREMENT: For each speaker, determine:
+       - Gender (MALE or FEMALE)
+       - Age Group (ADULT or CHILD) - This is vital for natural voice matching.
+    4. Translate the content precisely to ${targetLanguageCode}, maintaining the original tone and timing.
+    5. Output the result in valid JSON format.
     
     Format:
     {
-      "speakers": [{"id": "Speaker A", "gender": "MALE/FEMALE"}],
-      "script": [{"speakerId": "Speaker A", "text": "Translated text"}]
+      "speakers": [{"id": "Speaker A", "gender": "MALE/FEMALE", "age": "ADULT/CHILD"}],
+      "script": [{"speakerId": "Speaker A", "text": "Translated text matching the timestamp"}]
     }`;
 
     const response = await ai.models.generateContent({
@@ -60,7 +64,8 @@ app.post('/api/analyze-script', async (req, res) => {
     const formattedTranscript = (result.script || []).map(line => `${line.speakerId}: ${line.text}`).join('\n');
     const speakers = (result.speakers || []).map(s => ({
       id: s.id,
-      gender: s.gender?.toUpperCase().includes('FEMALE') ? 'FEMALE' : 'MALE'
+      gender: s.gender?.toUpperCase().includes('FEMALE') ? 'FEMALE' : 'MALE',
+      age: s.age?.toUpperCase().includes('CHILD') ? 'CHILD' : 'ADULT'
     }));
 
     res.json({ transcript: formattedTranscript, speakers });
@@ -79,26 +84,40 @@ app.post('/api/generate-audio', async (req, res) => {
     let speechConfig = {};
     const validSpeakers = (analysis.speakers || []).slice(0, 2);
 
+    // VOICE MAPPING LOGIC:
+    // Adult Male -> Fenrir (Strong) / Zephyr (Smooth)
+    // Adult Female -> Kore (Clear)
+    // Child -> Puck (High pitch/Playful) / Charon
+    
     if (validSpeakers.length === 2) {
       speechConfig = {
         multiSpeakerVoiceConfig: {
           speakerVoiceConfigs: [
             {
               speaker: validSpeakers[0].id,
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: validSpeakers[0].gender === 'FEMALE' ? 'Kore' : 'Fenrir' } }
+              voiceConfig: { 
+                prebuiltVoiceConfig: { 
+                  voiceName: validSpeakers[0].age === 'CHILD' ? 'Puck' : (validSpeakers[0].gender === 'FEMALE' ? 'Kore' : 'Fenrir') 
+                } 
+              }
             },
             {
               speaker: validSpeakers[1].id,
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: validSpeakers[1].gender === 'FEMALE' ? 'Puck' : 'Zephyr' } }
+              voiceConfig: { 
+                prebuiltVoiceConfig: { 
+                  voiceName: validSpeakers[1].age === 'CHILD' ? 'Charon' : (validSpeakers[1].gender === 'FEMALE' ? 'Puck' : 'Zephyr') 
+                } 
+              }
             }
           ]
         }
       };
     } else {
-      const primaryGender = validSpeakers[0]?.gender || 'MALE';
+      const sp = validSpeakers[0];
+      const primaryVoice = sp?.age === 'CHILD' ? 'Puck' : (sp?.gender === 'FEMALE' ? 'Kore' : 'Zephyr');
       speechConfig = {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: primaryGender === 'FEMALE' ? 'Kore' : 'Zephyr' }
+          prebuiltVoiceConfig: { voiceName: primaryVoice }
         }
       };
     }

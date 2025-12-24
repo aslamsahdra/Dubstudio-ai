@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Upload, Mic2, Check, Download, X, History, Trash2, PlayCircle, 
   AudioLines, Languages, Sparkles, AlertCircle, RefreshCcw, LayoutGrid, 
-  Cpu, ShieldCheck, Settings, Palette, LogIn, HardDrive, User, LogOut 
+  Cpu, ShieldCheck, Settings, Palette, LogIn, HardDrive, User, LogOut, 
+  Smartphone, Crown, Play
 } from 'lucide-react';
 import { DubbingState, Language, SUPPORTED_LANGUAGES, UILanguageCode } from './types';
 import { fileToBase64, pcmToWavBlob } from './utils/fileUtils';
@@ -35,9 +36,13 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [themeColor, setThemeColor] = useState<ThemeColor>('indigo');
-  const [user, setUser] = useState<{name: string, email: string, photo?: string} | null>(null);
+  const [user, setUser] = useState<{name: string, email: string, isPremium: boolean} | null>(null);
   const [isDriveLinked, setIsDriveLinked] = useState(false);
-  
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showAd, setShowAd] = useState(false);
+  const [adTimer, setAdTimer] = useState(15);
+  const [pendingVideoDuration, setPendingVideoDuration] = useState(0);
+
   const t = translations[uiLanguage] || translations['en'];
 
   const themeClasses = {
@@ -53,35 +58,66 @@ export default function App() {
     if (saved) setHistory(JSON.parse(saved));
     const savedTheme = localStorage.getItem('dub_v4_theme') as ThemeColor;
     if (savedTheme) setThemeColor(savedTheme);
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
   }, []);
 
-  const saveHistory = (item: HistoryItem) => {
-    const updated = [item, ...history].slice(0, 15);
-    setHistory(updated);
-    localStorage.setItem('dub_v4_master_history', JSON.stringify(updated));
-  };
+  useEffect(() => {
+    let timer: any;
+    if (showAd && adTimer > 0) {
+      timer = setInterval(() => setAdTimer(prev => prev - 1), 1000);
+    } else if (showAd && adTimer === 0) {
+      setShowAd(false);
+      proceedToDubbing();
+    }
+    return () => clearInterval(timer);
+  }, [showAd, adTimer]);
 
-  const deleteHistory = (id: string) => {
-    const updated = history.filter(i => i.id !== id);
-    setHistory(updated);
-    localStorage.setItem('dub_v4_master_history', JSON.stringify(updated));
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstallPrompt(null);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 150 * 1024 * 1024) {
-        alert("File too large. Max 150MB.");
-        return;
-      }
-      setVideoFile(file);
-      setVideoUrl(URL.createObjectURL(file));
-      setDubbedAudioUrl(null);
-      setDubbingState({ status: 'idle' });
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        setPendingVideoDuration(video.duration);
+        setVideoFile(file);
+        setVideoUrl(URL.createObjectURL(file));
+        setDubbedAudioUrl(null);
+        setDubbingState({ status: 'idle' });
+      };
+      video.src = URL.createObjectURL(file);
     }
   };
 
-  const startDubbing = async () => {
+  const startDubbingProcess = () => {
+    if (pendingVideoDuration > 120 && (!user || !user.isPremium)) {
+      alert(uiLanguage === 'pa' ? "2 ਮਿੰਟ ਤੋਂ ਵੱਡੀ ਵੀਡੀਓ ਲਈ ਪ੍ਰੀਮੀਅਮ ਪਲਾਨ ਚਾਹੀਦਾ ਹੈ।" : "Premium required for >2m videos.");
+      return;
+    }
+
+    if (pendingVideoDuration > 15 && (!user || !user.isPremium)) {
+      setAdTimer(15);
+      setShowAd(true);
+    } else {
+      proceedToDubbing();
+    }
+  };
+
+  const proceedToDubbing = async () => {
     if (!videoFile) return;
     setDubbingState({ status: 'uploading' });
     try {
@@ -94,24 +130,9 @@ export default function App() {
       const dubbedUrl = URL.createObjectURL(audioBlob);
       setDubbedAudioUrl(dubbedUrl);
       setDubbingState({ status: 'complete' });
-      saveHistory({
-        id: Date.now().toString(),
-        originalUrl: videoUrl!,
-        dubbedUrl: dubbedUrl,
-        language: targetLanguage.name,
-        fileName: videoFile.name,
-        timestamp: Date.now()
-      });
     } catch (error: any) {
       setDubbingState({ status: 'error', errorMessage: error.message || "Dubbing Failed" });
     }
-  };
-
-  const handleLogin = () => {
-    setUser({
-      name: 'Master Editor',
-      email: 'editor@aslamsahdra.com',
-    });
   };
 
   const toggleTheme = (color: ThemeColor) => {
@@ -121,49 +142,48 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-[#020617] text-slate-200 flex flex-col font-sans selection:bg-${themeColor}-500/30 overflow-x-hidden transition-colors duration-500`}>
-      {/* Dynamic Background Glow */}
       <div className={`fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-[600px] bg-${themeColor}-600/10 blur-[150px] pointer-events-none -z-10 rounded-full transition-colors duration-700`} />
 
       <header className="border-b border-white/5 bg-slate-950/90 backdrop-blur-3xl sticky top-0 z-[100]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-24 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-5 group cursor-pointer shrink" onClick={() => {setShowHistory(false); setShowSettings(false); setVideoUrl(null);}}>
+          <div className="flex items-center gap-3 sm:gap-5 group cursor-pointer shrink" onClick={() => window.location.reload()}>
             <div className={`bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} p-2.5 sm:p-3 rounded-2xl shadow-xl transition-transform group-hover:scale-105 shrink-0`}>
               <AudioLines className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-lg sm:text-2xl font-black text-white tracking-tighter uppercase truncate">DubStudio <span className={themeColor === 'indigo' ? 'text-indigo-400' : themeColor === 'rose' ? 'text-rose-400' : themeColor === 'emerald' ? 'text-emerald-400' : themeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}>PRO</span></span>
-                <span className="hidden xs:inline-block px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-full text-[7px] font-black text-slate-500 uppercase tracking-widest shrink-0">Master</span>
+                {user?.isPremium && <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />}
               </div>
               <span className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-0.5 truncate">BY ASLAM SAHDRA</span>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-             <button 
-                onClick={() => {setShowHistory(!showHistory); setShowSettings(false);}} 
-                className={`p-2.5 sm:p-3 rounded-xl border transition-all hover:bg-white/5 ${showHistory ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'border-white/10 text-slate-400'}`}
-                title="Gallery"
-             >
-                <History className="w-5 h-5" />
-             </button>
+          <div className="flex items-center gap-2 sm:gap-4">
+             {installPrompt && (
+                <button 
+                  onClick={handleInstall}
+                  className={`hidden md:flex items-center gap-2 px-4 py-2.5 bg-${themeColor}-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-${themeColor}-600/20`}
+                >
+                  <Smartphone className="w-4 h-4" /> Install App
+                </button>
+             )}
              
              <button 
                 onClick={() => {setShowSettings(!showSettings); setShowHistory(false);}} 
                 className={`p-2.5 sm:p-3 rounded-xl border transition-all hover:bg-white/5 ${showSettings ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'border-white/10 text-slate-400'}`}
-                title="Settings"
              >
                 <Settings className="w-5 h-5" />
              </button>
 
              {user ? (
-                <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-white/10">
+                <div className="flex items-center gap-3 pl-3 border-l border-white/10">
                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} flex items-center justify-center text-white font-black text-xs shadow-lg`}>
                      {user.name.charAt(0)}
                    </div>
                 </div>
              ) : (
-                <button onClick={handleLogin} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                <button onClick={() => setUser({name: 'Aslam User', email: 'user@sahdra.com', isPremium: false})} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                    <LogIn className="w-4 h-4" /> Login
                 </button>
              )}
@@ -171,303 +191,210 @@ export default function App() {
         </div>
       </header>
 
+      {/* AD OVERLAY MODAL */}
+      {showAd && (
+        <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center p-6 sm:p-12 text-center overflow-hidden">
+           <div className="absolute top-10 right-10">
+              <span className="px-6 py-3 bg-white/10 text-white font-black rounded-2xl text-xl">{adTimer}s</span>
+           </div>
+           <div className="max-w-2xl space-y-12">
+              <div className={`w-32 h-32 bg-${themeColor}-500 rounded-[3rem] mx-auto flex items-center justify-center animate-bounce shadow-3xl`}>
+                 <Play className="w-16 h-16 text-white fill-white" />
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-4xl sm:text-6xl font-black text-white uppercase tracking-tighter">ਡੱਬਿੰਗ ਪ੍ਰੋਸੈਸਿੰਗ ਲਈ ਐਡ ਦੇਖੋ</h2>
+                <p className="text-xl text-slate-400 font-bold">Watch a short ad to unlock high-fidelity neural dubbing for this video.</p>
+              </div>
+              <div className="p-12 bg-white/5 rounded-[4rem] border border-white/5">
+                 <p className="text-sm font-black text-indigo-400 uppercase tracking-[0.4em]">Advertising Partner: Sahdra Network</p>
+              </div>
+              <button disabled className="px-10 py-5 bg-white/5 text-slate-600 rounded-3xl font-black uppercase text-sm tracking-widest border border-white/5 opacity-50">
+                 Skip available in {adTimer}s
+              </button>
+           </div>
+        </div>
+      )}
+
       <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-12 lg:py-20 relative">
-        {/* SETTINGS PANEL */}
-        {showSettings && (
+        {showSettings ? (
           <div className="animate-in fade-in slide-in-from-top-4 duration-500 max-w-4xl mx-auto space-y-12">
             <div className="flex items-center justify-between border-b border-white/10 pb-8">
-               <div className="flex items-center gap-5">
-                  <div className={`w-12 h-12 rounded-2xl bg-${themeColor}-500/10 flex items-center justify-center text-${themeColor}-400 border border-${themeColor}-500/20 shadow-xl`}>
-                     <Settings className="w-6 h-6" />
-                  </div>
-                  <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">ਸੈਟਿੰਗਜ਼ (Settings)</h2>
-               </div>
-               <button onClick={() => setShowSettings(false)} className="p-3 bg-white/5 hover:bg-rose-500/10 hover:text-rose-500 rounded-full transition-all"><X className="w-6 h-6" /></button>
+               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">ਸੈਟਿੰਗਜ਼ (Settings)</h2>
+               <button onClick={() => setShowSettings(false)} className="p-3 bg-white/5 rounded-full"><X className="w-6 h-6" /></button>
             </div>
-
             <div className="grid md:grid-cols-2 gap-8">
-               <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-10">
-                  <div className="space-y-6">
-                     <div className="flex items-center gap-3">
-                        <Palette className={`w-5 h-5 text-${themeColor}-400`} />
-                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਸਟੂਡੀਓ ਥੀਮ (Theme)</span>
-                     </div>
-                     <div className="flex flex-wrap gap-4">
-                        {(['indigo', 'rose', 'emerald', 'amber', 'purple'] as ThemeColor[]).map(color => (
-                          <button 
-                            key={color} 
-                            onClick={() => toggleTheme(color)}
-                            className={`w-12 h-12 rounded-2xl border-2 transition-all ${themeColor === color ? `border-white bg-${color}-500 scale-110 shadow-xl` : `border-transparent bg-${color}-900/40 hover:scale-105`}`}
-                          />
-                        ))}
-                     </div>
+               <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-8">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Studio Configuration</span>
+                  <div className="grid grid-cols-3 gap-3">
+                     <button onClick={() => setUiLanguage('pa')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'pa' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>ਪੰਜਾਬੀ</button>
+                     <button onClick={() => setUiLanguage('en')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'en' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>EN</button>
+                     <button onClick={() => setUiLanguage('hi')} className={`py-4 rounded-2xl border font-black text-xs ${uiLanguage === 'hi' ? `bg-${themeColor}-600 border-${themeColor}-400` : 'bg-white/5 border-white/5'}`}>हिन्दी</button>
                   </div>
-
-                  <div className="space-y-6">
-                     <div className="flex items-center gap-3">
-                        <Languages className={`w-5 h-5 text-${themeColor}-400`} />
-                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਭਾਸ਼ਾ (Language)</span>
-                     </div>
-                     <div className="grid grid-cols-3 gap-3">
-                        <button onClick={() => setUiLanguage('pa')} className={`py-4 rounded-2xl border font-black text-xs sm:text-sm transition-all ${uiLanguage === 'pa' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>ਪੰਜਾਬੀ</button>
-                        <button onClick={() => setUiLanguage('en')} className={`py-4 rounded-2xl border font-black text-xs sm:text-sm transition-all ${uiLanguage === 'en' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>EN</button>
-                        <button onClick={() => setUiLanguage('hi')} className={`py-4 rounded-2xl border font-black text-xs sm:text-sm transition-all ${uiLanguage === 'hi' ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-lg` : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}>हिन्दी</button>
-                     </div>
+                  <div className="flex gap-4">
+                     {(['indigo', 'rose', 'emerald', 'amber', 'purple'] as ThemeColor[]).map(color => (
+                        <button key={color} onClick={() => toggleTheme(color)} className={`w-12 h-12 rounded-2xl border-2 ${themeColor === color ? 'border-white' : 'border-transparent'} bg-${color}-500`} />
+                     ))}
                   </div>
                </div>
-
-               <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-10">
-                  <div className="space-y-8">
-                     <div className="flex items-center gap-3">
-                        <User className={`w-5 h-5 text-${themeColor}-400`} />
-                        <span className="text-sm font-black uppercase tracking-widest text-slate-400">ਤੁਹਾਡਾ ਖਾਤਾ (Account)</span>
-                     </div>
-                     
-                     {!user ? (
-                        <div className="space-y-6">
-                           <p className="text-xs text-slate-500 font-medium leading-relaxed">Login to sync your dubbed master recordings with Google Drive.</p>
-                           <button onClick={handleLogin} className={`w-full py-5 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:scale-[1.02] transition-all`}>
-                              <LogIn className="w-5 h-5" /> Google Login
-                           </button>
-                        </div>
-                     ) : (
-                        <div className="space-y-8">
-                           <div className="flex items-center gap-4 p-4 bg-white/5 rounded-3xl border border-white/5">
-                              <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${themeClasses[themeColor].split(' ').slice(0,2).join(' ')} flex items-center justify-center text-white font-black`}>{user.name.charAt(0)}</div>
-                              <div className="flex flex-col min-w-0">
-                                 <span className="text-sm font-black text-white">{user.name}</span>
-                                 <span className="text-[10px] text-slate-500 font-bold truncate">{user.email}</span>
-                              </div>
-                              <button onClick={() => setUser(null)} className="ml-auto p-2 text-slate-600 hover:text-rose-500 transition-colors"><LogOut className="w-4 h-4" /></button>
-                           </div>
-
-                           <div className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                 <div className="flex items-center gap-2">
-                                    <HardDrive className={`w-4 h-4 ${isDriveLinked ? 'text-emerald-400' : 'text-slate-600'}`} />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Drive Sync</span>
-                                 </div>
-                                 <button 
-                                   onClick={() => setIsDriveLinked(!isDriveLinked)}
-                                   className={`w-12 h-6 rounded-full relative transition-all ${isDriveLinked ? `bg-${themeColor}-500` : 'bg-slate-800'}`}
-                                 >
-                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isDriveLinked ? 'left-7' : 'left-1'}`} />
-                                 </button>
-                              </div>
-                           </div>
-                        </div>
-                     )}
+               <div className="bg-slate-900/40 border border-white/5 rounded-[3rem] p-10 space-y-8 flex flex-col justify-center text-center">
+                  <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
+                     <Crown className="w-8 h-8 text-amber-500" />
                   </div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Master Pro Access</h3>
+                  <p className="text-xs text-slate-500 font-bold mb-6">Unlimited dubbing, no ads, high-priority processing.</p>
+                  <button className="w-full py-4 bg-amber-500 text-black rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.02] transition-all">Go Premium</button>
                </div>
             </div>
           </div>
-        )}
-
-        {/* MAIN STUDIO VIEW */}
-        {!showSettings && (
-          <>
-            {showHistory ? (
-              <div className="space-y-10 animate-in fade-in zoom-in-95 duration-500">
-                <div className="flex items-center justify-between border-b border-white/5 pb-8">
-                  <div>
-                    <h2 className="text-4xl font-black text-white tracking-tight uppercase">{uiLanguage === 'pa' ? 'ਤੁਹਾਡੀ ਗੈਲਰੀ' : uiLanguage === 'hi' ? 'आपकी गैलरी' : 'Your Gallery'}</h2>
-                    <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mt-2">Production History • Aslam Sahdra</p>
-                  </div>
-                  <button onClick={() => setShowHistory(false)} className="p-3 bg-white/5 hover:bg-rose-500/10 hover:text-rose-500 rounded-full transition-all">
-                    <X className="w-6 h-6" />
-                  </button>
+        ) : !videoUrl ? (
+          <div className="max-w-5xl mx-auto py-12 text-center space-y-16 animate-in fade-in slide-in-from-bottom-12 duration-1000">
+            <div className="space-y-6">
+                <div className={`inline-flex items-center gap-3 px-5 py-2.5 bg-${themeColor}-500/10 border border-${themeColor}-500/20 rounded-full text-${themeColor}-400 text-[10px] font-black uppercase tracking-[0.3em] mb-4`}>
+                    <Sparkles className="w-4 h-4" /> Neural Audio Synthesis
                 </div>
-                
-                {history.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-40 text-center bg-slate-900/30 rounded-[4rem] border border-dashed border-white/5">
-                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-8 border border-white/5">
-                        <LayoutGrid className="w-10 h-10 text-slate-700" />
+                <h1 className="text-6xl md:text-[9rem] font-black tracking-tighter text-white leading-[0.85] drop-shadow-2xl">
+                  {uiLanguage === 'pa' ? 'ਵੀਡੀਓਜ਼ ਨੂੰ' : 'DUB YOUR'}<br />
+                  <span className={`text-transparent bg-clip-text bg-gradient-to-r from-${themeColor}-400 via-white to-purple-400`}>{uiLanguage === 'pa' ? 'ਮਾਸਟਰ ਡੱਬ' : 'MASTER VIDEOS'}</span> {uiLanguage === 'pa' ? 'ਕਰੋ' : ''}
+                </h1>
+                <p className="text-slate-500 text-lg sm:text-xl font-bold max-w-2xl mx-auto leading-relaxed uppercase tracking-tight opacity-70">
+                    Smart voice matching for Adults & Children. Precision Lip-Sync Analysis.
+                </p>
+            </div>
+
+            <div className="max-w-xl mx-auto pt-8">
+              <label className="relative group block cursor-pointer transition-all active:scale-95">
+                <div className={`absolute -inset-4 bg-${themeColor}-500/20 rounded-[4.5rem] blur-3xl opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+                <div className={`relative flex flex-col items-center gap-8 p-12 sm:p-24 bg-slate-900/60 backdrop-blur-3xl border-2 border-dashed border-slate-800 rounded-[4.5rem] group-hover:border-${themeColor}-500/50 transition-all shadow-3xl`}>
+                  <div className={`w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center group-hover:bg-${themeColor}-500/10 border border-white/5`}>
+                    <Upload className={`w-10 h-10 text-white group-hover:text-${themeColor}-400`} />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-2xl font-black text-white tracking-tight uppercase">{t.uploadBtn}</h3>
+                    <div className="flex items-center gap-2 justify-center opacity-40">
+                       <Smartphone className="w-4 h-4" />
+                       <span className="text-[10px] font-black uppercase tracking-widest">Mobile Ready</span>
                     </div>
-                    <h3 className="text-2xl font-black text-slate-500 uppercase tracking-widest">{uiLanguage === 'pa' ? 'ਗੈਲਰੀ ਖਾਲੀ ਹੈ' : 'Gallery Empty'}</h3>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {history.map((item) => (
-                      <div key={item.id} className={`bg-slate-900/60 border border-white/10 rounded-[3rem] overflow-hidden group hover:border-${themeColor}-500/50 transition-all shadow-2xl`}>
-                        <div className="aspect-video bg-black relative overflow-hidden">
-                          <video src={item.originalUrl} className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-all duration-700" />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                              <button 
-                                onClick={() => { 
-                                    setVideoUrl(item.originalUrl); 
-                                    setDubbedAudioUrl(item.dubbedUrl); 
-                                    setShowHistory(false); 
-                                    setDubbingState({status: 'complete'}); 
-                                }} 
-                                className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-3xl transform scale-90 group-hover:scale-100 transition-all duration-500 active:scale-90"
-                              >
-                                <PlayCircle className="w-8 h-8" />
-                              </button>
-                          </div>
-                          <div className="absolute top-6 left-6">
-                              <span className={`px-4 py-1.5 bg-${themeColor}-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg`}>{item.language}</span>
-                          </div>
-                        </div>
-                        <div className="p-8 flex items-center justify-between">
-                          <div className="flex flex-col min-w-0 pr-4">
-                            <span className="text-base font-bold text-white truncate">{item.fileName}</span>
-                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-1.5">{new Date(item.timestamp).toLocaleDateString()}</span>
-                          </div>
-                          <button onClick={() => deleteHistory(item.id)} className="p-3 text-rose-500 hover:bg-rose-500/10 rounded-2xl transition-colors">
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : !videoUrl ? (
-              <div className="max-w-5xl mx-auto py-12 space-y-16 text-center animate-in fade-in slide-in-from-bottom-12 duration-1000">
+                </div>
+                <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div className="grid lg:grid-cols-12 gap-12">
+            <div className="lg:col-span-4 space-y-8">
+              <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] p-10 space-y-10 shadow-3xl">
                 <div className="space-y-6">
-                    <div className={`inline-flex items-center gap-3 px-5 py-2.5 bg-${themeColor}-500/10 border border-${themeColor}-500/20 rounded-full text-${themeColor}-400 text-[10px] font-black uppercase tracking-[0.3em] mb-4`}>
-                        <Sparkles className="w-4 h-4" /> Neural Synthesis Studio
+                    <div className="flex items-center justify-between px-2">
+                        <span className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-600">{t.targetLanguage}</span>
+                        <Languages className="w-5 h-5 text-slate-700" />
                     </div>
-                    <h1 className="text-6xl md:text-[10rem] font-black tracking-tighter text-white leading-[0.8] drop-shadow-2xl">
-                      {uiLanguage === 'pa' ? 'ਵੀਡੀਓਜ਼ ਨੂੰ' : uiLanguage === 'hi' ? 'वीडियोस को' : 'DUB YOUR'}<br />
-                      <span className={`text-transparent bg-clip-text bg-gradient-to-r from-${themeColor}-400 via-white to-purple-400`}>{uiLanguage === 'pa' ? 'ਮਾਸਟਰ ਡੱਬ' : uiLanguage === 'hi' ? 'मास्टर डब' : 'MASTER VIDEOS'}</span> {uiLanguage === 'pa' ? 'ਕਰੋ' : uiLanguage === 'hi' ? 'करें' : ''}।
-                    </h1>
-                    <p className="text-slate-500 text-xl font-medium max-w-2xl mx-auto leading-relaxed">
-                        Professional AI video dubbing with high-fidelity voice matching. Powered by Neural Engine 2025.
-                    </p>
+                    <div className="grid gap-2.5 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => setTargetLanguage(lang)}
+                          className={`flex items-center justify-between px-6 py-5 rounded-[2rem] border-2 transition-all text-sm font-black
+                            ${targetLanguage.code === lang.code ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-xl` : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10'}`}
+                        >
+                          {lang.name}
+                          {targetLanguage.code === lang.code && <Check className="w-4 h-4 animate-in zoom-in" />}
+                        </button>
+                      ))}
+                    </div>
                 </div>
 
-                <div className="max-w-2xl mx-auto pt-8">
-                  <label className="relative group block cursor-pointer transition-transform active:scale-95">
-                    <div className={`absolute -inset-6 bg-${themeColor}-500/10 rounded-[5rem] blur-3xl opacity-0 group-hover:opacity-100 transition-opacity`}></div>
-                    <div className={`relative flex flex-col items-center gap-8 p-16 md:p-32 bg-slate-900/40 backdrop-blur-3xl border-2 border-dashed border-slate-800 rounded-[5rem] group-hover:border-${themeColor}-500/50 transition-all shadow-2xl`}>
-                      <div className={`w-20 h-20 bg-white/5 rounded-[2.5rem] flex items-center justify-center group-hover:bg-${themeColor}-500/10 transition-colors border border-white/5 shadow-inner`}>
-                        <Upload className={`w-10 h-10 text-white group-hover:text-${themeColor}-400`} />
-                      </div>
-                      <div className="space-y-3">
-                        <h3 className="text-3xl font-black text-white tracking-tight uppercase">{t.uploadBtn}</h3>
-                        <p className="text-[11px] font-black text-slate-600 uppercase tracking-[0.5em]">{t.maxSize}</p>
-                      </div>
-                    </div>
-                    <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
-                  </label>
-                </div>
+                <button
+                    onClick={startDubbingProcess}
+                    disabled={dubbingState.status !== 'idle' && dubbingState.status !== 'complete'}
+                    className={`w-full py-7 bg-white text-black rounded-[2.5rem] font-black text-base uppercase tracking-[0.2em] transition-all shadow-3xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-4 group`}
+                  >
+                    {dubbingState.status === 'idle' || dubbingState.status === 'complete' ? <><Mic2 className="w-6 h-6 group-hover:scale-110 transition-transform" /> {t.generateDub}</> : <RefreshCcw className="w-6 h-6 animate-spin" />}
+                </button>
+                
+                <button onClick={() => setVideoUrl(null)} className="w-full text-center text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-rose-500 transition-colors">Cancel Production</button>
               </div>
-            ) : (
-              <div className="grid lg:grid-cols-12 gap-12">
-                <div className="lg:col-span-4 space-y-8">
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] p-10 space-y-10 shadow-3xl">
-                    <button onClick={() => setVideoUrl(null)} className="w-full flex items-center justify-center gap-3 py-4 bg-white/5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-3xl text-[11px] font-black uppercase tracking-[0.2em] transition-all border border-white/5">
-                        <X className="w-5 h-5" /> Change Production
-                    </button>
+            </div>
 
-                    <div className="space-y-5">
-                        <div className="flex items-center justify-between px-2">
-                            <span className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-600">{t.targetLanguage}</span>
-                            <Languages className="w-5 h-5 text-slate-700" />
-                        </div>
-                        <div className="grid gap-2.5 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                          {SUPPORTED_LANGUAGES.map((lang) => (
-                            <button
-                              key={lang.code}
-                              onClick={() => setTargetLanguage(lang)}
-                              disabled={dubbingState.status !== 'idle' && dubbingState.status !== 'complete'}
-                              className={`flex items-center justify-between px-7 py-5 rounded-[2rem] border-2 transition-all text-sm font-black
-                                ${targetLanguage.code === lang.code ? `bg-${themeColor}-600 border-${themeColor}-400 text-white shadow-2xl shadow-${themeColor}-600/20` : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:border-white/5'}`}
-                            >
-                              {lang.name}
-                              {targetLanguage.code === lang.code && <Check className="w-5 h-5 animate-in zoom-in" />}
-                            </button>
-                          ))}
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={startDubbing}
-                        disabled={dubbingState.status !== 'idle' && dubbingState.status !== 'complete'}
-                        className={`w-full py-7 bg-white text-black rounded-[2.5rem] font-black text-base uppercase tracking-[0.2em] transition-all shadow-3xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-4 group`}
-                      >
-                        {dubbingState.status === 'idle' || dubbingState.status === 'complete' ? <><Mic2 className="w-6 h-6 group-hover:scale-110 transition-transform" /> {t.generateDub}</> : <RefreshCcw className="w-6 h-6 animate-spin" />}
-                    </button>
-                  </div>
+            <div className="lg:col-span-8 space-y-10">
+                <div className="relative rounded-[4.5rem] overflow-hidden bg-black shadow-3xl border border-white/10 aspect-video group">
+                    <VideoPlayer originalVideoUrl={videoUrl} dubbedAudioUrl={dubbedAudioUrl} isDubbedAudioEnabled={true} />
+                    <ProcessingOverlay state={dubbingState} uiLanguage={uiLanguage} />
                 </div>
 
-                <div className="lg:col-span-8 space-y-10">
-                    <div className="relative rounded-[4.5rem] overflow-hidden bg-black shadow-3xl border border-white/10 aspect-video group">
-                        <VideoPlayer originalVideoUrl={videoUrl} dubbedAudioUrl={dubbedAudioUrl} isDubbedAudioEnabled={true} />
-                        <ProcessingOverlay state={dubbingState} uiLanguage={uiLanguage} />
-                    </div>
-
-                    {dubbingState.status === 'complete' && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 p-12 rounded-[4rem] flex flex-wrap items-center justify-between gap-8 animate-in slide-in-from-top-12 duration-1000 shadow-2xl">
-                            <div className="flex items-center gap-8">
-                                <div className="w-20 h-20 bg-emerald-500 text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20"><Check className="w-10 h-10" /></div>
-                                <div>
-                                    <h3 className="text-3xl font-black text-white tracking-tighter uppercase">Production Ready</h3>
-                                    <p className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mt-3">Exported in high-fidelity {targetLanguage.name}</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                              <button 
-                                  onClick={async () => { 
-                                      const merged = await exportMergedVideo(videoUrl!, dubbedAudioUrl!); 
-                                      const url = URL.createObjectURL(merged); 
-                                      const a = document.createElement('a'); 
-                                      a.href = url; 
-                                      a.download = `aslam_sahdra_dub_${Date.now()}.webm`; 
-                                      a.click(); 
-                                  }} 
-                                  className="px-8 py-5 bg-white text-black rounded-3xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-2xl"
-                              >
-                                  <Download className="w-5 h-5" /> Export
-                              </button>
+                {dubbingState.status === 'complete' && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 p-10 rounded-[4rem] flex flex-wrap items-center justify-between gap-8 animate-in slide-in-from-top-12 duration-1000 shadow-2xl">
+                        <div className="flex items-center gap-6">
+                            <div className="w-16 h-16 bg-emerald-500 text-white rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20"><Check className="w-8 h-8" /></div>
+                            <div>
+                                <h3 className="text-2xl font-black text-white tracking-tighter uppercase">Production Done</h3>
+                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.4em] mt-2">Verified High-Fidelity Audio</p>
                             </div>
                         </div>
-                    )}
-                </div>
-              </div>
-            )}
-          </>
+                        <button 
+                            onClick={async () => { 
+                                const merged = await exportMergedVideo(videoUrl!, dubbedAudioUrl!); 
+                                const url = URL.createObjectURL(merged); 
+                                const a = document.createElement('a'); 
+                                a.href = url; 
+                                a.download = `aslam_sahdra_master_${Date.now()}.webm`; 
+                                a.click(); 
+                            }} 
+                            className="px-10 py-5 bg-white text-black rounded-3xl text-sm font-black uppercase tracking-widest flex items-center gap-3 transition-all active:scale-95 shadow-2xl"
+                        >
+                            <Download className="w-5 h-5" /> Save Master
+                        </button>
+                    </div>
+                )}
+            </div>
+          </div>
         )}
       </main>
 
       {/* FOOTER - MAXIMUM BRANDING PROMINENCE - ASLAM SAHDRA PRODUCTION */}
-      <footer className="py-28 text-center border-t border-white/5 bg-slate-950 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-14">
-            <div className="flex items-center gap-12 opacity-40">
-               <Cpu className={`w-6 h-6 text-${themeColor}-400`} />
-               <div className="h-px w-32 bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
-               <ShieldCheck className="w-6 h-6 text-emerald-400" />
+      <footer className="py-32 text-center border-t border-white/5 bg-slate-950 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-16">
+            <div className="flex items-center gap-14 opacity-30">
+               <Cpu className={`w-8 h-8 text-${themeColor}-400`} />
+               <div className="h-px w-48 bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
+               <ShieldCheck className="w-8 h-8 text-emerald-400" />
             </div>
             
-            <div className="space-y-8 w-full">
-                <div className="flex flex-col items-center gap-6">
-                   <p className="text-xs text-slate-500 font-black uppercase tracking-[1em] opacity-50">PRODUCED BY</p>
-                   <p className="text-4xl md:text-8xl text-white font-black uppercase tracking-[0.2em] leading-tight drop-shadow-[0_0_50px_rgba(255,255,255,0.15)] transition-all hover:tracking-[0.25em] duration-1000">
-                      Aslam Sahdra Production
+            <div className="space-y-10 w-full">
+                <div className="flex flex-col items-center gap-8">
+                   <p className="text-sm text-slate-600 font-black uppercase tracking-[1.5em] opacity-50">PRODUCED BY THE LEGEND</p>
+                   <p className="text-5xl md:text-[10rem] text-white font-black uppercase tracking-[0.15em] leading-[0.8] drop-shadow-[0_0_80px_rgba(255,255,255,0.15)] transition-all hover:tracking-[0.2em] duration-1000 cursor-default">
+                      Aslam Sahdra<br/><span className={`text-${themeColor}-500/40`}>Production</span>
                    </p>
-                   <div className={`h-1.5 w-48 bg-gradient-to-r from-transparent via-${themeColor}-500 to-transparent my-4`} />
-                   <p className={`text-lg md:text-2xl text-${themeColor}-400/90 font-black tracking-[0.6em] uppercase`}>
-                      Neural Engine 2025 • High Fidelity Synthesis
-                   </p>
+                   <div className={`h-2 w-64 bg-gradient-to-r from-transparent via-${themeColor}-500 to-transparent my-6`} />
+                   <div className="flex flex-wrap items-center justify-center gap-12 text-center">
+                      <div>
+                         <p className={`text-xl md:text-3xl text-white font-black tracking-widest uppercase`}>Neural Engine 2025</p>
+                         <p className="text-[10px] text-slate-700 font-black uppercase tracking-[0.4em] mt-2">Next-Gen Audio Synthesis</p>
+                      </div>
+                      <div className="w-px h-12 bg-white/10 hidden md:block" />
+                      <div>
+                         <p className={`text-xl md:text-3xl text-white font-black tracking-widest uppercase`}>High Fidelity</p>
+                         <p className="text-[10px] text-slate-700 font-black uppercase tracking-[0.4em] mt-2">Smart Voice Matching System</p>
+                      </div>
+                   </div>
                 </div>
             </div>
             
-            <div className="flex flex-col items-center gap-6 pt-16 border-t border-white/5 w-full max-w-4xl">
-              <div className="flex items-center gap-8">
-                 <span className="text-[10px] text-slate-700 font-black uppercase tracking-widest">Master Studio Edition</span>
-                 <div className="w-1.5 h-1.5 bg-slate-800 rounded-full" />
-                 <span className="text-[10px] text-slate-700 font-black uppercase tracking-widest">Authorized Build v1.4.9</span>
+            <div className="flex flex-col items-center gap-8 pt-20 border-t border-white/5 w-full max-w-5xl">
+              <div className="flex flex-wrap items-center justify-center gap-10">
+                 <span className="text-[11px] text-slate-700 font-black uppercase tracking-widest">Master Studio Edition v1.5</span>
+                 <span className="text-[11px] text-slate-700 font-black uppercase tracking-widest">Global Distribution Rights</span>
+                 <span className="text-[11px] text-slate-700 font-black uppercase tracking-widest">Built for Aslam Sahdra</span>
               </div>
-              <p className="text-[10px] text-slate-800 font-black uppercase tracking-[0.8em]">© 2025 ASLAM SAHDRA • ALL RIGHTS RESERVED</p>
+              <p className="text-sm text-slate-800 font-black uppercase tracking-[1em] opacity-40">© 2025 ASLAM SAHDRA • ALL RIGHTS RESERVED</p>
             </div>
           </div>
           
-          {/* Decorative Giant Text in Background */}
-          <div className="absolute top-1/2 left-0 -translate-y-1/2 rotate-90 text-[180px] font-black text-white/[0.01] pointer-events-none select-none uppercase tracking-tighter whitespace-nowrap">
+          <div className="absolute top-1/2 left-0 -translate-y-1/2 rotate-90 text-[250px] font-black text-white/[0.005] pointer-events-none select-none uppercase tracking-tighter whitespace-nowrap">
             ASLAM SAHDRA
           </div>
-          <div className="absolute top-1/2 right-0 -translate-y-1/2 -rotate-90 text-[180px] font-black text-white/[0.01] pointer-events-none select-none uppercase tracking-tighter whitespace-nowrap">
+          <div className="absolute top-1/2 right-0 -translate-y-1/2 -rotate-90 text-[250px] font-black text-white/[0.005] pointer-events-none select-none uppercase tracking-tighter whitespace-nowrap">
             MASTER EDITION
           </div>
       </footer>
