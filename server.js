@@ -4,6 +4,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,20 +14,24 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-console.log('--- DUBSTUDIO STARTUP ---');
-console.log('PORT:', port);
-console.log('API_KEY:', process.env.API_KEY ? 'CONFIGURED ✅' : 'MISSING ❌');
-console.log('---------------------');
+console.log('🚀 DUBSTUDIO PRO BOOTING UP...');
+console.log(`📡 Port: ${port}`);
+console.log(`🔑 API Key: ${process.env.API_KEY ? 'ACTIVE' : 'NOT DETECTED'}`);
 
 app.use(cors());
 app.use(express.json({ limit: '120mb' }));
 
-// Health check for Railway monitoring
-app.get('/health', (req, res) => res.status(200).send('OK'));
+// Health Check for Railway/GCP
+app.get('/health', (req, res) => res.status(200).json({ status: 'OK', uptime: process.uptime() }));
 
-// Static file serving from 'dist'
-const distPath = path.join(__dirname, 'dist');
-app.use(express.static(distPath));
+// Serve Static Frontend from 'dist' folder
+const distPath = path.resolve(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  console.log(`✅ Serving production frontend from: ${distPath}`);
+  app.use(express.static(distPath));
+} else {
+  console.warn('⚠️ WARNING: "dist" folder not found. Did you run "npm run build"?');
+}
 
 // API: Analyze video and generate script
 app.post('/api/analyze-script', async (req, res) => {
@@ -35,7 +40,7 @@ app.post('/api/analyze-script', async (req, res) => {
     const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
-      return res.status(500).json({ error: "Missing API_KEY in server environment." });
+      return res.status(500).json({ error: "API_KEY is missing on the server." });
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -81,7 +86,7 @@ app.post('/api/generate-audio', async (req, res) => {
   try {
     const { analysis } = req.body;
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "API_KEY Missing" });
+    if (!apiKey) return res.status(500).json({ error: "API_KEY is missing on the server." });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-2.5-flash-preview-tts'; 
@@ -113,16 +118,21 @@ app.post('/api/generate-audio', async (req, res) => {
 
     res.json({ audioBase64 });
   } catch (error) {
-    console.error("Audio Error:", error);
+    console.error("Audio Synthesis Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Fallback for SPA routing
+// SPA Fallback: All other routes serve index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+  const indexPath = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Production build not found. Ensure "npm run build" was executed.');
+  }
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`✅ Server is listening on 0.0.0.0:${port}`);
 });
