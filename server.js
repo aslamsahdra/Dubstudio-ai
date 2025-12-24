@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI, Modality } from '@google/genai';
@@ -18,7 +17,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '200mb' }));
 
-app.get('/health', (req, res) => res.status(200).json({ status: 'OK' }));
+app.get('/health', (req, res) => res.status(200).json({ status: 'OK', engine: 'Neural 2025' }));
 
 const distPath = path.resolve(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
@@ -34,13 +33,13 @@ app.post('/api/analyze-script', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
-    const prompt = `Task: Professional Video Dubbing Analysis.
-    1. Watch the video and identify every unique person who speaks.
-    2. Crucial: Determine the biological gender (MALE or FEMALE) of each speaker by analyzing facial features, clothing, and lip movement.
-    3. Translate all dialogue into ${targetLanguageCode}.
-    4. Provide the result in JSON format ONLY.
+    const prompt = `Task: High-Fidelity Video Dubbing Analysis.
+    1. Watch the video meticulously.
+    2. Identify unique speakers.
+    3. ABSOLUTE REQUIREMENT: Determine if each speaker is MALE or FEMALE by visual and auditory cues.
+    4. Translate the content to ${targetLanguageCode}.
     
-    JSON Structure:
+    Format:
     {
       "speakers": [{"id": "Speaker A", "gender": "MALE/FEMALE"}],
       "script": [{"speakerId": "Speaker A", "text": "Translated text"}]
@@ -120,7 +119,7 @@ app.post('/api/generate-audio', async (req, res) => {
 app.get('*', (req, res) => {
   const indexPath = path.join(distPath, 'index.html');
   if (fs.existsSync(indexPath)) res.sendFile(indexPath);
-  else res.status(404).send('Not Found');
+  else res.status(404).send('Master Edition Not Found');
 });
 
 app.listen(port, '0.0.0.0');

@@ -1,4 +1,3 @@
-
 import { UILanguageCode } from './types';
 
 export const translations: Record<UILanguageCode, any> = {
@@ -34,10 +33,17 @@ export const translations: Record<UILanguageCode, any> = {
   },
   hi: {
     appName: "डबस्टूडियो PRO",
-    heroTitle: "यूनिवर्सल वीडियो डबिंग",
-    heroSubtitle: "AI संचालित",
+    heroTitle: "प्रोफेशनल वीडियो डबिंग",
+    heroSubtitle: "न्यूरल AI स्टूडियो",
     uploadBtn: "वीडियो अपलोड करें",
-    generateDub: "सिंथेसिस शुरू करें",
-    saveVideo: "फाइल सेव करें"
+    generateDub: "डबिंग शुरू करें",
+    saveVideo: "वीडियो डाउनलोड करें",
+    readyMessage: "AI इंजन काम कर रहा है...",
+    step1: "वीडियो अपलोड हो रहा है...",
+    step2: "AI वीडियो देख रहा है...",
+    step3: "AI आवाज़ें तैयार हो रही हैं...",
+    step4: "सिंक फाइनल हो रहा है...",
+    maxSize: "MP4, WebM (अधिकतम 100MB)",
+    targetLanguage: "टारगेट भाषा"
   }
 };
