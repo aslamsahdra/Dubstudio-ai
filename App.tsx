@@ -4,12 +4,12 @@ import {
   Upload, Mic2, Check, Download, X, AudioLines, Sparkles, 
   Settings, Smartphone, DownloadCloud, RefreshCcw, Crown, 
   Play, ShieldCheck, CreditCard, Zap, Share2, Palette, Globe,
-  ExternalLink
+  AlertCircle
 } from 'lucide-react';
+import { GoogleGenAI, Modality } from "@google/genai";
 import { DubbingState, Language, SUPPORTED_LANGUAGES, UILanguageCode, UI_LANGUAGES } from './types';
 import { fileToBase64, pcmToWavBlob } from './utils/fileUtils';
 import { exportMergedVideo } from './utils/videoExporter';
-import * as geminiService from './services/geminiService';
 import VideoPlayer from './components/VideoPlayer';
 import ProcessingOverlay from './components/ProcessingOverlay';
 import { translations } from './translations';
@@ -26,7 +26,8 @@ export default function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [dubbedAudioUrl, setDubbedAudioUrl] = useState<string | null>(null);
   const [uiLanguage, setUiLanguage] = useState<UILanguageCode>('pa'); 
-  const [targetLanguage, setTargetLanguage] = useState<Language>(SUPPORTED_LANGUAGES[0]); 
+  // Default to Punjabi (index 1 in SUPPORTED_LANGUAGES usually)
+  const [targetLanguage, setTargetLanguage] = useState<Language>(SUPPORTED_LANGUAGES.find(l => l.code === 'pa') || SUPPORTED_LANGUAGES[0]); 
   const [dubbingState, setDubbingState] = useState<DubbingState>({ status: 'idle' });
   const [showSettings, setShowSettings] = useState(false);
   const [user, setUser] = useState({ isPremium: false });
@@ -49,27 +50,19 @@ export default function App() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // RESET ALL STATES to prevent infinite loading or state overlap
-      setVideoUrl(null);
+      // Immediate UI update
+      const url = URL.createObjectURL(file);
+      setVideoFile(file);
+      setVideoUrl(url);
       setDubbedAudioUrl(null);
       setDubbingState({ status: 'idle' });
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target?.result as string;
-        const video = document.createElement('video');
-        video.preload = 'metadata';
-        video.onloadedmetadata = () => {
-          setVideoDuration(video.duration);
-          setVideoFile(file);
-          setVideoUrl(url);
-        };
-        video.onerror = () => {
-          setDubbingState({ status: 'error', errorMessage: "Video format not supported" });
-        };
-        video.src = url;
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        setVideoDuration(video.duration);
       };
-      reader.readAsDataURL(file);
+      video.src = url;
     }
   };
 
@@ -79,15 +72,49 @@ export default function App() {
     
     setDubbingState({ status: 'uploading' });
     try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const base64 = await fileToBase64(videoFile);
+      
       setDubbingState({ status: 'analyzing' });
-      const analysis = await geminiService.generateTranslatedScript(base64, videoFile.type, targetLanguage);
+      
+      // Part 1: Analyze & Translate
+      const analysisResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            { inlineData: { mimeType: videoFile.type, data: base64 } },
+            { text: `Analyze this video and translate the dialogue to ${targetLanguage.name}. 
+              Return JSON ONLY: { "speakers": [{ "id": "S1", "gender": "MALE/FEMALE" }], "script": [{ "speakerId": "S1", "text": "Translated text" }] }` }
+          ]
+        },
+        config: { responseMimeType: "application/json" }
+      });
+
+      const analysisResult = JSON.parse(analysisResponse.text || "{}");
+      const transcript = analysisResult.script.map((line: any) => `${line.speakerId}: ${line.text}`).join('\n');
+
       setDubbingState({ status: 'dubbing' });
-      const audioB64 = await geminiService.generateDubbedAudio(analysis, targetLanguage);
-      setDubbedAudioUrl(URL.createObjectURL(pcmToWavBlob(audioB64, 24000)));
+
+      // Part 2: Generate Audio (TTS)
+      const ttsResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-preview-tts',
+        contents: { parts: [{ text: transcript }] },
+        config: { 
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: analysisResult.speakers[0]?.gender === 'FEMALE' ? 'Kore' : 'Fenrir' } }
+          }
+        }
+      });
+
+      const audioBase64 = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!audioBase64) throw new Error("TTS failed to generate audio");
+
+      setDubbedAudioUrl(URL.createObjectURL(pcmToWavBlob(audioBase64, 24000)));
       setDubbingState({ status: 'complete' });
     } catch (e: any) {
-      setDubbingState({ status: 'error', errorMessage: e.message || "Engine Error" });
+      console.error(e);
+      setDubbingState({ status: 'error', errorMessage: e.message || "Dubbing failed. Check your connection." });
     }
   };
 
@@ -98,7 +125,7 @@ export default function App() {
       const file = new File([mergedBlob], `aslam_sahdra_dub_${Date.now()}.webm`, { type: 'video/webm' });
       
       const appUrl = window.location.origin; 
-      const shareText = `Check out my video dubbed by Aslam Sahdra AI! 🎙️✨\nTry it now and download the app here: ${appUrl}`;
+      const shareText = `Check out my video dubbed by Aslam Sahdra AI! 🎙️✨\nTry it now at: ${appUrl}\n\n#AslamSahdra #AIDubbing`;
 
       if (navigator.share) {
         await navigator.share({
@@ -119,6 +146,12 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-[#020617] text-white flex flex-col font-sans overflow-hidden`}>
+      {/* Dynamic Theme Color Injection */}
+      <style>{`
+        .theme-accent { color: ${activeTheme.color.replace('bg-', '')}; }
+        .theme-bg { background-color: ${activeTheme.color.replace('bg-', '')}; }
+      `}</style>
+
       {/* Header */}
       <header className="h-16 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl flex items-center justify-between px-6 z-[100] sticky top-0">
         <div className="flex items-center gap-3">
@@ -127,7 +160,7 @@ export default function App() {
           </div>
           <div className="leading-tight">
             <h1 className="text-xs font-black uppercase tracking-tighter">Aslam Sahdra <span className={activeTheme.text}>Neural Studio</span></h1>
-            <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">Master Edition V2.8</p>
+            <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">Master Edition V3.0</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -142,20 +175,20 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Studio Console */}
+      {/* Main Layout: Top Master Screen, Bottom Controls */}
       <main className="flex-1 flex flex-col overflow-hidden">
         
-        {/* UPPER: Master Screen */}
-        <section className="flex-[2] relative bg-black flex items-center justify-center p-0 sm:p-6 overflow-hidden border-b border-white/5">
+        {/* UPPER: Video Monitor (Top Screen) */}
+        <section className="flex-[2.5] relative bg-black flex items-center justify-center p-0 sm:p-4 overflow-hidden">
            {videoUrl ? (
-             <div className="w-full h-full max-w-5xl aspect-video sm:rounded-3xl overflow-hidden shadow-3xl border-0 sm:border border-white/5 bg-black relative">
+             <div className="w-full h-full max-w-5xl aspect-video sm:rounded-3xl overflow-hidden shadow-3xl bg-black relative border-0 sm:border border-white/5">
                <VideoPlayer originalVideoUrl={videoUrl} dubbedAudioUrl={dubbedAudioUrl} isDubbedAudioEnabled={true} />
                <ProcessingOverlay state={dubbingState} uiLanguage={uiLanguage} />
                
-               {/* Label */}
+               {/* Overlay Status */}
                <div className="absolute top-6 left-6 px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 flex items-center gap-2">
                  <div className={`w-2 h-2 rounded-full ${videoUrl ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}`} />
-                 <span className="text-[9px] font-black uppercase text-white/80 tracking-widest">Studio Monitor Active</span>
+                 <span className="text-[9px] font-black uppercase text-white/80 tracking-widest">Neural Feed Active</span>
                </div>
              </div>
            ) : (
@@ -163,20 +196,34 @@ export default function App() {
                 <div className={`w-24 h-24 ${activeTheme.color} bg-opacity-10 border ${activeTheme.border} rounded-[2.5rem] flex items-center justify-center mx-auto mb-6`}>
                   <Upload className={`w-10 h-10 ${activeTheme.text}`} />
                 </div>
-                <h2 className="text-4xl sm:text-7xl font-black text-white uppercase tracking-tighter italic">Neural <span className={activeTheme.text}>Studio</span></h2>
-                <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.4em]">Official Aslam Sahdra Production</p>
+                <h2 className="text-4xl sm:text-6xl font-black text-white uppercase tracking-tighter italic">Neural <span className={activeTheme.text}>Dubber</span></h2>
+                <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.4em]">Official Aslam Sahdra Engine</p>
              </div>
+           )}
+
+           {/* Error Alert */}
+           {dubbingState.status === 'error' && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-6 animate-in slide-in-from-bottom-4">
+                <div className="bg-red-500/10 border border-red-500/50 backdrop-blur-xl p-4 rounded-2xl flex items-center gap-4">
+                  <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-[10px] font-black uppercase text-red-500 tracking-widest">Engine Error</p>
+                    <p className="text-[9px] text-white/70 font-bold">{dubbingState.errorMessage}</p>
+                  </div>
+                  <button onClick={() => setDubbingState({ status: 'idle' })} className="p-2 bg-white/5 rounded-full hover:bg-white/10"><X className="w-4 h-4" /></button>
+                </div>
+              </div>
            )}
         </section>
 
-        {/* LOWER: Control Center */}
-        <section className="bg-slate-950 p-6 sm:p-10 pb-12 sm:pb-10 overflow-y-auto shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+        {/* LOWER: Control Console (Bottom Section) */}
+        <section className="bg-slate-950 p-6 sm:p-10 pb-12 sm:pb-8 border-t border-white/5 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-10 overflow-y-auto">
            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-8">
               
-              {/* File Selection & Display */}
+              {/* Left Side: Upload & Target Info */}
               <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto">
-                 <label className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest cursor-pointer hover:bg-slate-200 transition-all flex items-center justify-center gap-3">
-                    <Upload className="w-4 h-4" /> {videoUrl ? 'Change Video' : t.uploadBtn}
+                 <label className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest cursor-pointer hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-3">
+                    <Upload className="w-4 h-4" /> {videoUrl ? 'New Video' : t.uploadBtn}
                     <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
                  </label>
 
@@ -190,7 +237,7 @@ export default function App() {
                  </div>
               </div>
 
-              {/* Execution Buttons */}
+              {/* Right Side: Primary Actions */}
               <div className="flex items-center gap-4 w-full lg:w-auto">
                  {videoUrl && (
                    <button 
@@ -198,7 +245,7 @@ export default function App() {
                      disabled={dubbingState.status !== 'idle' && dubbingState.status !== 'complete'}
                      className={`flex-1 lg:flex-none px-12 py-5 ${activeTheme.color} text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl ${activeTheme.shadow} flex items-center justify-center gap-3 disabled:opacity-50`}
                    >
-                     {dubbingState.status === 'idle' || dubbingState.status === 'complete' ? <><Mic2 className="w-4 h-4" /> Process Dub</> : <RefreshCcw className="w-4 h-4 animate-spin" />}
+                     {dubbingState.status === 'idle' || dubbingState.status === 'complete' ? <><Mic2 className="w-4 h-4" /> Synthesis</> : <RefreshCcw className="w-4 h-4 animate-spin" />}
                    </button>
                  )}
 
@@ -208,15 +255,15 @@ export default function App() {
                        onClick={async () => {
                          const merged = await exportMergedVideo(videoUrl!, dubbedAudioUrl!);
                          const url = URL.createObjectURL(merged);
-                         const a = document.createElement('a'); a.href = url; a.download = `dubbed_production_${Date.now()}.webm`; a.click();
+                         const a = document.createElement('a'); a.href = url; a.download = `sahdra_dub_${Date.now()}.webm`; a.click();
                        }}
-                       className="flex-1 sm:flex-none px-8 py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 active:scale-95 transition-all"
+                       className="flex-1 sm:flex-none px-8 py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 active:scale-95 transition-all flex items-center justify-center gap-2"
                      >
                        <DownloadCloud className="w-4 h-4" /> Save
                      </button>
                      <button 
                        onClick={handleShare}
-                       className="flex-1 sm:flex-none px-8 py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-3"
+                       className="flex-1 sm:flex-none px-8 py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
                      >
                        <Share2 className="w-4 h-4" /> Share
                      </button>
@@ -227,33 +274,27 @@ export default function App() {
         </section>
       </main>
 
-      {/* Advanced Professional Settings Modal */}
+      {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-[200] bg-black/98 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-10">
-           <div className="bg-slate-900 border border-white/10 w-full max-w-3xl rounded-[3.5rem] p-8 sm:p-12 space-y-10 animate-in zoom-in duration-300 max-h-[95vh] overflow-y-auto custom-scrollbar">
+        <div className="fixed inset-0 z-[200] bg-black/98 backdrop-blur-2xl flex items-center justify-center p-4">
+           <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 space-y-10 animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
               
-              <div className="flex justify-between items-center sticky top-0 bg-slate-900 py-4 z-10 border-b border-white/10">
-                 <div className="flex items-center gap-4">
-                   <Settings className={`w-8 h-8 ${activeTheme.text}`} />
-                   <h3 className="text-3xl font-black uppercase tracking-tighter italic">Studio Console</h3>
-                 </div>
+              <div className="flex justify-between items-center sticky top-0 bg-slate-900 py-2 z-10 border-b border-white/5">
+                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Studio Settings</h3>
                  <button onClick={() => setShowSettings(false)} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors"><X className="w-6 h-6" /></button>
               </div>
 
-              {/* SECTION: TARGET LANGUAGES (50+) */}
+              {/* Target Dubbing Language (50+ List) */}
               <div className="space-y-4">
-                 <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                       <Globe className="w-4 h-4" /> Synthesis Target Language (Global List)
-                    </p>
-                    <span className={`text-[8px] font-black uppercase tracking-widest ${activeTheme.text} bg-white/5 px-3 py-1 rounded-full border border-white/5`}>50+ Dialects</span>
-                 </div>
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 h-72 overflow-y-auto pr-4 custom-scrollbar bg-black/30 p-5 rounded-[2rem] border border-white/5">
+                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <Globe className="w-3 h-3" /> Select Synthesis Output Language
+                 </p>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 h-64 overflow-y-auto pr-2 custom-scrollbar p-2 bg-black/20 rounded-2xl">
                     {SUPPORTED_LANGUAGES.map(l => (
                       <button 
                         key={l.code} 
                         onClick={() => { setTargetLanguage(l); }} 
-                        className={`py-4 px-2 rounded-2xl border font-black uppercase text-[9px] tracking-tight transition-all text-center ${targetLanguage.code === l.code ? `${activeTheme.color} border-white/20 text-white` : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
+                        className={`py-4 px-2 rounded-xl border font-black uppercase text-[9px] tracking-tight transition-all text-center ${targetLanguage.code === l.code ? `${activeTheme.color} border-white/20 text-white` : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'}`}
                       >
                         {l.name}
                       </button>
@@ -261,52 +302,33 @@ export default function App() {
                  </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                 {/* SECTION: UI LANGUAGE */}
+              {/* Theme & UI */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-4">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                       <Smartphone className="w-4 h-4" /> Interface Language
-                    </p>
-                    <div className="grid grid-cols-1 gap-3">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Interface Language</p>
+                    <div className="flex flex-col gap-2">
                        {UI_LANGUAGES.map(l => (
                          <button 
                            key={l.code} 
                            onClick={() => { setUiLanguage(l.code); localStorage.setItem('sahdra_v6_lang', l.code); }} 
-                           className={`py-5 px-6 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-between ${uiLanguage === l.code ? `${activeTheme.color} border-white/20 text-white shadow-lg` : 'bg-white/5 border-transparent text-slate-500'}`}
+                           className={`py-4 px-6 rounded-2xl border font-black uppercase text-[10px] tracking-widest transition-all text-left ${uiLanguage === l.code ? `${activeTheme.color} text-white` : 'bg-white/5 border-white/5 text-slate-500'}`}
                          >
-                           {l.name} {uiLanguage === l.code && <Check className="w-4 h-4" />}
+                           {l.name}
                          </button>
                        ))}
                     </div>
                  </div>
-
-                 {/* SECTION: THEME CUSTOMIZATION */}
                  <div className="space-y-4">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                       <Palette className="w-4 h-4" /> Studio Theme
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Studio Theme</p>
+                    <div className="grid grid-cols-2 gap-3">
                        {THEMES.map(th => (
                          <button 
                            key={th.name} 
                            onClick={() => { setActiveTheme(th); localStorage.setItem('sahdra_theme', th.name); }}
-                           className={`group relative h-20 rounded-2xl ${th.color} border-4 transition-all overflow-hidden ${activeTheme.name === th.name ? 'border-white scale-105' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                         >
-                           <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white uppercase tracking-tighter shadow-black drop-shadow-md">{th.name}</span>
-                         </button>
+                           className={`h-12 rounded-xl ${th.color} border-2 transition-all ${activeTheme.name === th.name ? 'border-white scale-105' : 'border-transparent opacity-50'}`}
+                         />
                        ))}
                     </div>
-                 </div>
-              </div>
-
-              {/* PROMO BOX */}
-              <div className="p-8 bg-indigo-600/10 border border-indigo-500/20 rounded-[2.5rem] flex items-center justify-between gap-6">
-                 <div className="space-y-2">
-                   <h4 className="text-sm font-black uppercase tracking-widest text-white">Share Your Creation</h4>
-                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">Each share includes your app link to help grow the Sahdra network.</p>
-                 </div>
-                 <div className="p-4 bg-indigo-600 rounded-2xl shadow-xl">
-                   <Share2 className="w-6 h-6 text-white" />
                  </div>
               </div>
            </div>
@@ -317,32 +339,28 @@ export default function App() {
       {showPayment && (
         <div className="fixed inset-0 z-[250] bg-black/98 flex items-center justify-center p-6">
            <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[4rem] p-12 space-y-10 relative">
-              <button onClick={() => setShowPayment(false)} className="absolute top-10 right-10 p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors"><X className="w-6 h-6" /></button>
+              <button onClick={() => setShowPayment(false)} className="absolute top-10 right-10 p-3 bg-white/5 rounded-full"><X className="w-6 h-6" /></button>
               <div className="text-center space-y-4">
                  <div className="w-24 h-24 bg-amber-500 rounded-3xl mx-auto flex items-center justify-center shadow-3xl shadow-amber-500/30 -rotate-6">
                     <Crown className="w-12 h-12 text-black" />
                  </div>
                  <h2 className="text-4xl font-black uppercase tracking-tighter">Production Pro</h2>
-                 <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-loose italic text-center">Unlock Unlimited Dubbing & 4K Exports</p>
+                 <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest italic text-center leading-loose">Unlock Unlimited Neural Dubbing & 4K Master Exports</p>
               </div>
-              <div className="space-y-4">
-                 <button onClick={() => { setUser({ isPremium: true }); setShowPayment(false); }} className="w-full py-6 bg-white text-black rounded-3xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all shadow-2xl">Activate Annual License - $89.99</button>
-                 <button onClick={() => { setUser({ isPremium: true }); setShowPayment(false); }} className="w-full py-6 bg-white/5 text-white border border-white/10 rounded-3xl font-black uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">Monthly Access - $9.99</button>
-              </div>
+              <button onClick={() => { setUser({ isPremium: true }); setShowPayment(false); }} className="w-full py-6 bg-white text-black rounded-3xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all shadow-2xl">Activate Studio License - $89.99</button>
            </div>
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer Branding */}
       <footer className="h-10 border-t border-white/5 flex items-center justify-center bg-black/90 backdrop-blur-md">
          <span className="text-[7px] font-black text-slate-700 uppercase tracking-[1.5em] select-none">ASLAM SAHDRA PRODUCTION STUDIO</span>
       </footer>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
       `}</style>
     </div>
   );
