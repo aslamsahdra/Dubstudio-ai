@@ -49,22 +49,27 @@ export default function App() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // CLEAR ALL STATE IMMEDIATELY to stop the "infinite loading" bug
+      // RESET ALL STATES to prevent infinite loading or state overlap
       setVideoUrl(null);
       setDubbedAudioUrl(null);
       setDubbingState({ status: 'idle' });
       
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        setVideoDuration(video.duration);
-        setVideoFile(file);
-        setVideoUrl(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const url = e.target?.result as string;
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => {
+          setVideoDuration(video.duration);
+          setVideoFile(file);
+          setVideoUrl(url);
+        };
+        video.onerror = () => {
+          setDubbingState({ status: 'error', errorMessage: "Video format not supported" });
+        };
+        video.src = url;
       };
-      video.onerror = () => {
-        setDubbingState({ status: 'error', errorMessage: "Video format not supported" });
-      };
-      video.src = URL.createObjectURL(file);
+      reader.readAsDataURL(file);
     }
   };
 
@@ -92,7 +97,7 @@ export default function App() {
       const mergedBlob = await exportMergedVideo(videoUrl, dubbedAudioUrl);
       const file = new File([mergedBlob], `aslam_sahdra_dub_${Date.now()}.webm`, { type: 'video/webm' });
       
-      const appUrl = window.location.origin; // Get the current app link
+      const appUrl = window.location.origin; 
       const shareText = `Check out my video dubbed by Aslam Sahdra AI! 🎙️✨\nTry it now and download the app here: ${appUrl}`;
 
       if (navigator.share) {
@@ -102,11 +107,10 @@ export default function App() {
           text: shareText
         });
       } else {
-        // Desktop Fallback
         const url = URL.createObjectURL(mergedBlob);
         const a = document.createElement('a'); a.href = url; a.download = file.name; a.click();
         navigator.clipboard.writeText(shareText);
-        alert("Video saved! App link copied to clipboard. Paste it when you share!");
+        alert("Video saved! App link copied to clipboard. Share it with your friends!");
       }
     } catch (err) {
       console.error("Share failed", err);
@@ -123,7 +127,7 @@ export default function App() {
           </div>
           <div className="leading-tight">
             <h1 className="text-xs font-black uppercase tracking-tighter">Aslam Sahdra <span className={activeTheme.text}>Neural Studio</span></h1>
-            <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">Master Edition V2.5</p>
+            <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest">Master Edition V2.8</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -141,8 +145,8 @@ export default function App() {
       {/* Main Studio Console */}
       <main className="flex-1 flex flex-col overflow-hidden">
         
-        {/* UPPER: Master Screen (Fixed) */}
-        <section className="flex-[1.8] relative bg-black flex items-center justify-center p-0 sm:p-6 overflow-hidden">
+        {/* UPPER: Master Screen */}
+        <section className="flex-[2] relative bg-black flex items-center justify-center p-0 sm:p-6 overflow-hidden border-b border-white/5">
            {videoUrl ? (
              <div className="w-full h-full max-w-5xl aspect-video sm:rounded-3xl overflow-hidden shadow-3xl border-0 sm:border border-white/5 bg-black relative">
                <VideoPlayer originalVideoUrl={videoUrl} dubbedAudioUrl={dubbedAudioUrl} isDubbedAudioEnabled={true} />
@@ -151,7 +155,7 @@ export default function App() {
                {/* Label */}
                <div className="absolute top-6 left-6 px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 flex items-center gap-2">
                  <div className={`w-2 h-2 rounded-full ${videoUrl ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}`} />
-                 <span className="text-[9px] font-black uppercase text-white/80 tracking-widest">Master Studio Live</span>
+                 <span className="text-[9px] font-black uppercase text-white/80 tracking-widest">Studio Monitor Active</span>
                </div>
              </div>
            ) : (
@@ -159,20 +163,20 @@ export default function App() {
                 <div className={`w-24 h-24 ${activeTheme.color} bg-opacity-10 border ${activeTheme.border} rounded-[2.5rem] flex items-center justify-center mx-auto mb-6`}>
                   <Upload className={`w-10 h-10 ${activeTheme.text}`} />
                 </div>
-                <h2 className="text-4xl sm:text-7xl font-black text-white uppercase tracking-tighter italic">Neural <span className={activeTheme.text}>Dubbing</span></h2>
-                <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.4em]">Professional Multi-Language Synthesis</p>
+                <h2 className="text-4xl sm:text-7xl font-black text-white uppercase tracking-tighter italic">Neural <span className={activeTheme.text}>Studio</span></h2>
+                <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.4em]">Official Aslam Sahdra Production</p>
              </div>
            )}
         </section>
 
         {/* LOWER: Control Center */}
-        <section className="bg-slate-950 border-t border-white/10 p-6 sm:p-10 pb-12 sm:pb-10 overflow-y-auto">
+        <section className="bg-slate-950 p-6 sm:p-10 pb-12 sm:pb-10 overflow-y-auto shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-8">
               
-              {/* File Info */}
+              {/* File Selection & Display */}
               <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto">
                  <label className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest cursor-pointer hover:bg-slate-200 transition-all flex items-center justify-center gap-3">
-                    <Upload className="w-4 h-4" /> {videoUrl ? 'Upload New' : t.uploadBtn}
+                    <Upload className="w-4 h-4" /> {videoUrl ? 'Change Video' : t.uploadBtn}
                     <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
                  </label>
 
@@ -186,7 +190,7 @@ export default function App() {
                  </div>
               </div>
 
-              {/* Action Buttons */}
+              {/* Execution Buttons */}
               <div className="flex items-center gap-4 w-full lg:w-auto">
                  {videoUrl && (
                    <button 
@@ -194,7 +198,7 @@ export default function App() {
                      disabled={dubbingState.status !== 'idle' && dubbingState.status !== 'complete'}
                      className={`flex-1 lg:flex-none px-12 py-5 ${activeTheme.color} text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl ${activeTheme.shadow} flex items-center justify-center gap-3 disabled:opacity-50`}
                    >
-                     {dubbingState.status === 'idle' || dubbingState.status === 'complete' ? <><Mic2 className="w-4 h-4" /> Start Dubbing</> : <RefreshCcw className="w-4 h-4 animate-spin" />}
+                     {dubbingState.status === 'idle' || dubbingState.status === 'complete' ? <><Mic2 className="w-4 h-4" /> Process Dub</> : <RefreshCcw className="w-4 h-4 animate-spin" />}
                    </button>
                  )}
 
@@ -204,7 +208,7 @@ export default function App() {
                        onClick={async () => {
                          const merged = await exportMergedVideo(videoUrl!, dubbedAudioUrl!);
                          const url = URL.createObjectURL(merged);
-                         const a = document.createElement('a'); a.href = url; a.download = `sahdra_production_${Date.now()}.webm`; a.click();
+                         const a = document.createElement('a'); a.href = url; a.download = `dubbed_production_${Date.now()}.webm`; a.click();
                        }}
                        className="flex-1 sm:flex-none px-8 py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-400 active:scale-95 transition-all"
                      >
@@ -223,33 +227,33 @@ export default function App() {
         </section>
       </main>
 
-      {/* Advanced Studio Settings Modal */}
+      {/* Advanced Professional Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-10">
-           <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[3rem] p-8 sm:p-12 space-y-8 animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div className="fixed inset-0 z-[200] bg-black/98 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-10">
+           <div className="bg-slate-900 border border-white/10 w-full max-w-3xl rounded-[3.5rem] p-8 sm:p-12 space-y-10 animate-in zoom-in duration-300 max-h-[95vh] overflow-y-auto custom-scrollbar">
               
-              <div className="flex justify-between items-center sticky top-0 bg-slate-900 py-4 z-10 border-b border-white/5">
+              <div className="flex justify-between items-center sticky top-0 bg-slate-900 py-4 z-10 border-b border-white/10">
                  <div className="flex items-center gap-4">
-                   <Settings className={`w-6 h-6 ${activeTheme.text}`} />
-                   <h3 className="text-2xl font-black uppercase tracking-tighter italic">Production Console</h3>
+                   <Settings className={`w-8 h-8 ${activeTheme.text}`} />
+                   <h3 className="text-3xl font-black uppercase tracking-tighter italic">Studio Console</h3>
                  </div>
                  <button onClick={() => setShowSettings(false)} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors"><X className="w-6 h-6" /></button>
               </div>
 
-              {/* Section 1: Dubbing Output Language (50+ Languages) */}
+              {/* SECTION: TARGET LANGUAGES (50+) */}
               <div className="space-y-4">
                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                       <Globe className="w-3 h-3" /> Synthesis Target Language
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Globe className="w-4 h-4" /> Synthesis Target Language (Global List)
                     </p>
-                    <span className={`text-[8px] font-black uppercase tracking-widest ${activeTheme.text}`}>50+ Available</span>
+                    <span className={`text-[8px] font-black uppercase tracking-widest ${activeTheme.text} bg-white/5 px-3 py-1 rounded-full border border-white/5`}>50+ Dialects</span>
                  </div>
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 h-64 overflow-y-auto pr-4 custom-scrollbar bg-black/20 p-4 rounded-3xl border border-white/5">
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 h-72 overflow-y-auto pr-4 custom-scrollbar bg-black/30 p-5 rounded-[2rem] border border-white/5">
                     {SUPPORTED_LANGUAGES.map(l => (
                       <button 
                         key={l.code} 
                         onClick={() => { setTargetLanguage(l); }} 
-                        className={`py-3 px-2 rounded-xl border font-bold uppercase text-[9px] tracking-tight transition-all text-center ${targetLanguage.code === l.code ? `${activeTheme.color} border-white/20 text-white` : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'}`}
+                        className={`py-4 px-2 rounded-2xl border font-black uppercase text-[9px] tracking-tight transition-all text-center ${targetLanguage.code === l.code ? `${activeTheme.color} border-white/20 text-white` : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-white'}`}
                       >
                         {l.name}
                       </button>
@@ -257,46 +261,59 @@ export default function App() {
                  </div>
               </div>
 
-              {/* Section 2: Interface Language */}
-              <div className="space-y-4">
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                    <Smartphone className="w-3 h-3" /> App Interface Language
-                 </p>
-                 <div className="grid grid-cols-3 gap-3">
-                    {UI_LANGUAGES.map(l => (
-                      <button 
-                        key={l.code} 
-                        onClick={() => { setUiLanguage(l.code); localStorage.setItem('sahdra_v6_lang', l.code); }} 
-                        className={`py-5 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest transition-all ${uiLanguage === l.code ? `${activeTheme.color} border-white/20 text-white` : 'bg-white/5 border-transparent text-slate-500'}`}
-                      >
-                        {l.name}
-                      </button>
-                    ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                 {/* SECTION: UI LANGUAGE */}
+                 <div className="space-y-4">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Smartphone className="w-4 h-4" /> Interface Language
+                    </p>
+                    <div className="grid grid-cols-1 gap-3">
+                       {UI_LANGUAGES.map(l => (
+                         <button 
+                           key={l.code} 
+                           onClick={() => { setUiLanguage(l.code); localStorage.setItem('sahdra_v6_lang', l.code); }} 
+                           className={`py-5 px-6 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-between ${uiLanguage === l.code ? `${activeTheme.color} border-white/20 text-white shadow-lg` : 'bg-white/5 border-transparent text-slate-500'}`}
+                         >
+                           {l.name} {uiLanguage === l.code && <Check className="w-4 h-4" />}
+                         </button>
+                       ))}
+                    </div>
+                 </div>
+
+                 {/* SECTION: THEME CUSTOMIZATION */}
+                 <div className="space-y-4">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Palette className="w-4 h-4" /> Studio Theme
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                       {THEMES.map(th => (
+                         <button 
+                           key={th.name} 
+                           onClick={() => { setActiveTheme(th); localStorage.setItem('sahdra_theme', th.name); }}
+                           className={`group relative h-20 rounded-2xl ${th.color} border-4 transition-all overflow-hidden ${activeTheme.name === th.name ? 'border-white scale-105' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                         >
+                           <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white uppercase tracking-tighter shadow-black drop-shadow-md">{th.name}</span>
+                         </button>
+                       ))}
+                    </div>
                  </div>
               </div>
 
-              {/* Section 3: Theme Customization */}
-              <div className="space-y-4">
-                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                    <Palette className="w-3 h-3" /> Studio Appearance
-                 </p>
-                 <div className="grid grid-cols-4 gap-4">
-                    {THEMES.map(th => (
-                      <button 
-                        key={th.name} 
-                        onClick={() => { setActiveTheme(th); localStorage.setItem('sahdra_theme', th.name); }}
-                        className={`group relative h-16 rounded-2xl ${th.color} border-4 transition-all overflow-hidden ${activeTheme.name === th.name ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100'}`}
-                      >
-                        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-white uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">{th.name}</span>
-                      </button>
-                    ))}
+              {/* PROMO BOX */}
+              <div className="p-8 bg-indigo-600/10 border border-indigo-500/20 rounded-[2.5rem] flex items-center justify-between gap-6">
+                 <div className="space-y-2">
+                   <h4 className="text-sm font-black uppercase tracking-widest text-white">Share Your Creation</h4>
+                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">Each share includes your app link to help grow the Sahdra network.</p>
+                 </div>
+                 <div className="p-4 bg-indigo-600 rounded-2xl shadow-xl">
+                   <Share2 className="w-6 h-6 text-white" />
                  </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* Payment Upgrade Modal */}
+      {/* Upgrade Modal */}
       {showPayment && (
         <div className="fixed inset-0 z-[250] bg-black/98 flex items-center justify-center p-6">
            <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-[4rem] p-12 space-y-10 relative">
@@ -306,7 +323,7 @@ export default function App() {
                     <Crown className="w-12 h-12 text-black" />
                  </div>
                  <h2 className="text-4xl font-black uppercase tracking-tighter">Production Pro</h2>
-                 <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-loose italic">Official License by Aslam Sahdra Production</p>
+                 <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-loose italic text-center">Unlock Unlimited Dubbing & 4K Exports</p>
               </div>
               <div className="space-y-4">
                  <button onClick={() => { setUser({ isPremium: true }); setShowPayment(false); }} className="w-full py-6 bg-white text-black rounded-3xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all shadow-2xl">Activate Annual License - $89.99</button>
@@ -316,14 +333,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Production Footer */}
-      <footer className="h-10 border-t border-white/5 flex items-center justify-center bg-black/80 backdrop-blur-md">
-         <span className="text-[7px] font-black text-slate-700 uppercase tracking-[1.2em] select-none">ASLAM SAHDRA PRODUCTION STUDIO</span>
+      {/* Footer */}
+      <footer className="h-10 border-t border-white/5 flex items-center justify-center bg-black/90 backdrop-blur-md">
+         <span className="text-[7px] font-black text-slate-700 uppercase tracking-[1.5em] select-none">ASLAM SAHDRA PRODUCTION STUDIO</span>
       </footer>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
       `}</style>
