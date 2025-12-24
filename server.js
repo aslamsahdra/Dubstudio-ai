@@ -18,42 +18,31 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '200mb' }));
 
-// Health Check
-app.get('/health', (req, res) => res.status(200).json({ status: 'OK', engine: 'Neural 2025 Master' }));
-
-// IMPORTANT: Serve static files from root or dist depending on environment
-// On Railway/Production, we usually serve from 'dist' after 'npm run build'
+// Static Assets
 const distPath = path.resolve(__dirname, 'dist');
-const publicPath = path.resolve(__dirname, 'public');
-
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 } else {
-  // Fallback for development/direct serve
   app.use(express.static(__dirname));
-  if (fs.existsSync(publicPath)) {
-    app.use(express.static(publicPath));
+  if (fs.existsSync(path.resolve(__dirname, 'public'))) {
+    app.use(express.static(path.resolve(__dirname, 'public')));
   }
 }
 
+// API: Analyze Script
 app.post('/api/analyze-script', async (req, res) => {
   try {
     const { videoData, mimeType, targetLanguageCode } = req.body;
     const apiKey = process.env.API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "API_KEY missing" });
+    if (!apiKey) return res.status(500).json({ error: "API_KEY environment variable is missing on Railway" });
 
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-3-flash-preview'; 
     
     const prompt = `Task: Professional Multi-Speaker Video Dubbing Analysis.
-    Identify ALL speakers in the video and their vocal profiles.
-    
-    CRITICAL INSTRUCTIONS:
-    1. For each speaker, determine:
-       - Gender: MALE or FEMALE.
-       - Age Group: ADULT or CHILD. (Crucial: Identify children by high pitch and smaller stature).
-    2. Map the dialogue meticulously.
-    3. Translate accurately into ${targetLanguageCode}.
+    Identify ALL speakers in the video.
+    Crucial: Differentiate between Adults and Children based on vocal pitch.
+    Translate precisely into ${targetLanguageCode}.
     
     Output JSON ONLY:
     {
@@ -62,7 +51,7 @@ app.post('/api/analyze-script', async (req, res) => {
         { "id": "Speaker B", "gender": "FEMALE", "age": "CHILD" }
       ],
       "script": [
-        { "speakerId": "Speaker A", "text": "Translated text..." }
+        { "speakerId": "Speaker A", "text": "Translated dialogue..." }
       ]
     }`;
 
@@ -74,7 +63,7 @@ app.post('/api/analyze-script', async (req, res) => {
           { text: prompt }
         ]
       },
-      config: { responseMimeType: "application/json", temperature: 0.1 }
+      config: { responseMimeType: "application/json" }
     });
 
     const result = JSON.parse(response.text.trim());
@@ -91,6 +80,7 @@ app.post('/api/analyze-script', async (req, res) => {
   }
 });
 
+// API: Generate Audio
 app.post('/api/generate-audio', async (req, res) => {
   try {
     const { analysis } = req.body;
@@ -98,27 +88,21 @@ app.post('/api/generate-audio', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey });
     const model = 'gemini-2.5-flash-preview-tts'; 
 
-    let speechConfig = {};
-    const validSpeakers = (analysis.speakers || []).slice(0, 2);
-
     const getVoice = (s) => {
-      if (s.age === 'CHILD') return 'Puck'; // Best child voice
+      if (s.age === 'CHILD') return 'Puck'; // Natural Child Voice
       if (s.gender === 'FEMALE') return 'Kore';
-      return 'Fenrir'; // Strong male voice
+      return 'Fenrir'; // Deep Male Voice
     };
+
+    const validSpeakers = (analysis.speakers || []).slice(0, 2);
+    let speechConfig = {};
 
     if (validSpeakers.length >= 2) {
       speechConfig = {
         multiSpeakerVoiceConfig: {
           speakerVoiceConfigs: [
-            {
-              speaker: validSpeakers[0].id,
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: getVoice(validSpeakers[0]) } }
-            },
-            {
-              speaker: validSpeakers[1].id,
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: getVoice(validSpeakers[1]) } }
-            }
+            { speaker: validSpeakers[0].id, voiceConfig: { prebuiltVoiceConfig: { voiceName: getVoice(validSpeakers[0]) } } },
+            { speaker: validSpeakers[1].id, voiceConfig: { prebuiltVoiceConfig: { voiceName: getVoice(validSpeakers[1]) } } }
           ]
         }
       };
@@ -141,15 +125,11 @@ app.post('/api/generate-audio', async (req, res) => {
   }
 });
 
-// Serve index.html for any other route (SPA)
+// SPA Fallback
 app.get('*', (req, res) => {
   let indexPath = path.join(distPath, 'index.html');
-  if (!fs.existsSync(indexPath)) {
-    indexPath = path.join(__dirname, 'index.html');
-  }
+  if (!fs.existsSync(indexPath)) indexPath = path.join(__dirname, 'index.html');
   res.sendFile(indexPath);
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Master Server Live on port ${port}`);
-});
+app.listen(port, '0.0.0.0', () => console.log(`DubStudio Server running on port ${port}`));
